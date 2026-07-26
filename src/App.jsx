@@ -200,25 +200,31 @@ function Td({ children, align, style }) {
   );
 }
 
-function IconBtn({ icon: Icon, danger }) {
+function IconBtn({ icon: Icon, danger, ...rest }) {
   return (
-    <button style={{
-      width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`,
-      background: "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center",
-      color: danger ? C.red : C.muted, cursor: "pointer",
-    }}>
+    <button
+      {...rest}
+      style={{
+        width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`,
+        background: "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center",
+        color: danger ? C.red : C.muted, cursor: "pointer",
+        ...rest.style,
+      }}>
       <Icon size={13} />
     </button>
   );
 }
 
-function PrimaryBtn({ children, icon: Icon }) {
+function PrimaryBtn({ children, icon: Icon, ...rest }) {
   return (
-    <button style={{
-      display: "flex", alignItems: "center", gap: 7, background: C.gold, color: "#1A1400",
-      border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 700, fontSize: 13,
-      fontFamily: "'Rajdhani', sans-serif", letterSpacing: 0.3, cursor: "pointer",
-    }}>
+    <button
+      {...rest}
+      style={{
+        display: "flex", alignItems: "center", gap: 7, background: C.gold, color: "#1A1400",
+        border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 700, fontSize: 13,
+        fontFamily: "'Rajdhani', sans-serif", letterSpacing: 0.3, cursor: "pointer",
+        ...rest.style,
+      }}>
       {Icon && <Icon size={15} />} {children}
     </button>
   );
