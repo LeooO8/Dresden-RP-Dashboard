@@ -432,6 +432,7 @@ function DienstSection() {
   const [duty, setDuty] = useState(DUTY);
   const [newName, setNewName] = useState("");
   const [newTotal, setNewTotal] = useState(5);
+  const [newChannelId, setNewChannelId] = useState("");
 
   const refresh = () => apiGet("/api/dienst").then(setDuty).catch(() => {});
 
@@ -452,12 +453,12 @@ function DienstSection() {
   const createFraction = () => {
     if (!newName.trim()) return;
     if (!live) {
-      setDuty([...duty, { id: Date.now(), fraction: newName, onDuty: 0, total: Number(newTotal), hoursToday: 0 }]);
-      setNewName(""); setNewTotal(5);
+      setDuty([...duty, { id: Date.now(), fraction: newName, onDuty: 0, total: Number(newTotal), hoursToday: 0, channelId: newChannelId }]);
+      setNewName(""); setNewTotal(5); setNewChannelId("");
       return;
     }
-    apiPostQuery("/api/dienst", { name: newName, total: newTotal })
-      .then(() => { setNewName(""); setNewTotal(5); refresh(); })
+    apiPostQuery("/api/dienst", { name: newName, total: newTotal, channel_id: newChannelId || "" })
+      .then(() => { setNewName(""); setNewTotal(5); setNewChannelId(""); refresh(); })
       .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
 
@@ -470,7 +471,7 @@ function DienstSection() {
   return (
     <>
       <SectionTitle eyebrow="Fraktionen" title="Dienstsystem" />
-      <Panel style={{ padding: 16, marginBottom: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <Panel style={{ padding: 16, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input
           value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name der Fraktion (z.B. Polizei)"
           style={{ flex: 2, minWidth: 180, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
@@ -479,8 +480,15 @@ function DienstSection() {
           type="number" value={newTotal} onChange={(e) => setNewTotal(e.target.value)} placeholder="Plätze"
           style={{ width: 90, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
         />
+        <input
+          value={newChannelId} onChange={(e) => setNewChannelId(e.target.value)} placeholder="Kanal-ID für Dienst-Embeds (optional)"
+          style={{ flex: 1, minWidth: 220, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}
+        />
         <PrimaryBtn icon={Plus} onClick={createFraction}>Fraktion anlegen</PrimaryBtn>
       </Panel>
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 18 }}>
+        Kanal-ID bekommst du in Discord per Rechtsklick auf den Kanal → "ID kopieren" (Entwicklermodus muss aktiv sein).
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 14 }}>
         {duty.map((d) => (
           <Panel key={d.id || d.fraction} style={{ padding: 18 }}>
@@ -503,6 +511,11 @@ function DienstSection() {
               <span>{d.onDuty} / {d.total} im Dienst</span>
               <span><Clock size={11} style={{ display: "inline", marginRight: 3 }} />{d.hoursToday}h heute</span>
             </div>
+            {d.channelId && (
+              <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>
+                📢 Embed-Kanal: {d.channelId}
+              </div>
+            )}
             <div style={{ height: 6, background: C.panelAlt, borderRadius: 99, overflow: "hidden" }}>
               <div style={{ width: `${(d.onDuty / d.total) * 100}%`, height: "100%", background: C.cyan }} />
             </div>
