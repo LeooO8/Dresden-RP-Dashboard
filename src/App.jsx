@@ -12,7 +12,7 @@ import {
    Solange die API nicht erreichbar ist, bleiben alle Bereiche
    mit den Beispieldaten unten voll funktionsfähig ("Demo-Modus").
 --------------------------------------------------------- */
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://web-production-fdbea.up.railway.app";
 
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
