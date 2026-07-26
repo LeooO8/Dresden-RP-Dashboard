@@ -340,21 +340,58 @@ function DashboardSection() {
 function BankSection() {
   const { live } = useLive();
   const [startBalance, setStartBalance] = useState(500);
+  const [saved, setSaved] = useState(false);
   const [accounts, setAccounts] = useState(USERS);
   const [txns, setTxns] = useState(TRANSACTIONS);
+  const [toId, setToId] = useState("");
+  const [amount, setAmount] = useState("");
+
+  const refresh = () => {
+    apiGet("/api/bank/accounts").then(setAccounts).catch(() => {});
+    apiGet("/api/bank/transactions").then(setTxns).catch(() => {});
+  };
 
   useEffect(() => {
     if (!live) return;
-    apiGet("/api/bank/accounts").then(setAccounts).catch(() => {});
-    apiGet("/api/bank/transactions").then(setTxns).catch(() => {});
+    refresh();
+    apiGet("/api/settings").then((s) => {
+      if (s.startguthaben) setStartBalance(Number(s.startguthaben));
+    }).catch(() => {});
   }, [live]);
+
+  const saveStartBalance = () => {
+    apiPost("/api/settings", { startguthaben: startBalance })
+      .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2000); })
+      .catch((err) => alert(err.message || "Speichern fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const doTransfer = () => {
+    if (!toId || !amount) return;
+    if (!live) { alert("Überweisungen sind nur im Live-Modus möglich."); return; }
+    apiPostQuery("/api/bank/transfer", { empfaenger_id: toId, betrag: amount })
+      .then(() => { setToId(""); setAmount(""); refresh(); })
+      .catch((err) => alert(err.message || "Überweisung fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const adjustBalance = (u) => {
+    const input = prompt(`Guthaben von ${u.name} anpassen — Betrag eingeben (z.B. 500 oder -200):`);
+    if (input === null || input.trim() === "") return;
+    const delta = Number(input);
+    if (Number.isNaN(delta)) return alert("Bitte eine Zahl eingeben.");
+    if (!live) {
+      setAccounts(accounts.map((x) => x.id === u.id ? { ...x, balance: x.balance + delta } : x));
+      return;
+    }
+    apiPostQuery(`/api/users/${u.id}/balance`, { delta }).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
 
   return (
     <>
-      <SectionTitle eyebrow="Wirtschaft" title="Bank-System" action={<PrimaryBtn icon={Plus}>Konto verwalten</PrimaryBtn>} />
+      <SectionTitle eyebrow="Wirtschaft" title="Bank-System" />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
-        <StatCard icon={Wallet} label="Gesamtguthaben aller Nutzer" value={fmtMoney(0)} accent={C.gold} />
-        <StatCard icon={TrendingUp} label="Umsatz heute" value={fmtMoney(48200)} delta="+6,4%" deltaUp accent={C.green} />
+        <StatCard icon={Wallet} label="Gesamtguthaben aller Nutzer"
+          value={fmtMoney(accounts.reduce((sum, a) => sum + (a.balance || 0), 0))} accent={C.gold} />
         <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
           <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Startguthaben (frei einstellbar)</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -362,7 +399,24 @@ function BankSection() {
               type="number" value={startBalance} onChange={(e) => setStartBalance(e.target.value)}
               style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
             />
-            <PrimaryBtn>Speichern</PrimaryBtn>
+            <PrimaryBtn onClick={saveStartBalance}>{saved ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
+          </div>
+        </Panel>
+        <Panel style={{ padding: 18, flex: 1, minWidth: 260 }}>
+          <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Überweisen</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <select
+              value={toId} onChange={(e) => setToId(e.target.value)}
+              style={{ flex: 1.4, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+            >
+              <option value="">Empfänger wählen…</option>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <input
+              type="number" placeholder="Betrag" value={amount} onChange={(e) => setAmount(e.target.value)}
+              style={{ width: 100, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+            />
+            <PrimaryBtn onClick={doTransfer}>Senden</PrimaryBtn>
           </div>
         </Panel>
       </div>
@@ -377,7 +431,7 @@ function BankSection() {
                 <Td>{u.name}</Td>
                 <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold }}>{fmtMoney(u.balance)}</Td>
                 <Td><span style={{ color: C.muted }}>{u.role}</span></Td>
-                <Td align="right"><IconBtn icon={Pencil} /></Td>
+                <Td align="right"><IconBtn icon={Pencil} onClick={() => adjustBalance(u)} /></Td>
               </tr>
             ))}
           </tbody>
