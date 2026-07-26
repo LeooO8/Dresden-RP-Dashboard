@@ -644,7 +644,7 @@ function SettingsSection() {
               </div>
             ))}
             <PrimaryBtn>Speichern</PrimaryBtn>
-          </Panel>8
+          </Panel>
         ))}
       </div>
     </>
