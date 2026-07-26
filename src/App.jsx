@@ -12,7 +12,7 @@ import {
    Solange die API nicht erreichbar ist, bleiben alle Bereiche
    mit den Beispieldaten unten voll funktionsfähig ("Demo-Modus").
 --------------------------------------------------------- */
-const API_BASE = "https://web-production-fdbea.up.railway.app";
+const API_BASE = "http://localhost:8000";
 
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
@@ -30,6 +30,26 @@ async function apiPost(path, body) {
   if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
   return res.json();
 }
+
+async function apiPostQuery(path, params) {
+  const qs = new URLSearchParams(params || {}).toString();
+  const res = await fetch(`${API_BASE}${path}${qs ? `?${qs}` : ""}`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
+  return res.json();
+}
+
+async function apiDelete(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
+  return res.json();
+}
+
 const LiveContext = createContext({ live: false, user: null });
 const useLive = () => useContext(LiveContext);
 
@@ -212,9 +232,9 @@ function Ticker({ overview }) {
   const items = [
     { label: "BOT-STATUS", value: overview ? overview.bot_status?.toUpperCase() : "ONLINE", color: C.green },
     { label: "MITGLIEDER", value: overview ? overview.member_count.toLocaleString("de-DE") : "0", color: C.text },
-    { label: "IM DIENST", value: overview ? overview.on_duty : "0", color: C.cyan },
+    { label: "IM DIENST", value: overview ? overview.on_duty : "7", color: C.cyan },
     { label: "GESAMTGUTHABEN", value: fmtMoney(overview ? overview.total_balance : 0), color: C.gold },
-    { label: "UPTIME", value: "0T 0H 0M", color: C.text },
+    { label: "UPTIME", value: "14T 6H 22M", color: C.text },
   ];
   return (
     <div style={{
@@ -265,7 +285,7 @@ function DashboardSection() {
       <SectionTitle eyebrow="Systemübersicht" title="Dashboard" />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
         <StatCard icon={Users} label="Mitglieder gesamt" value="0" accent={C.cyan} />
-        <StatCard icon={ShieldHalf} label="Aktive Dienste" value="0" accent={C.green} />
+        <StatCard icon={ShieldHalf} label="Aktive Dienste" value="7" delta="+2" deltaUp accent={C.green} />
         <StatCard icon={Coins} label="Gesamtguthaben" value={fmtMoney(0)} accent={C.gold} />
         <StatCard icon={Activity} label="Bot-Uptime" value="0%" accent={C.text} />
       </div>
@@ -312,29 +332,19 @@ function BankSection() {
   const [startBalance, setStartBalance] = useState(500);
   const [accounts, setAccounts] = useState(USERS);
   const [txns, setTxns] = useState(TRANSACTIONS);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!live) return;
     apiGet("/api/bank/accounts").then(setAccounts).catch(() => {});
     apiGet("/api/bank/transactions").then(setTxns).catch(() => {});
-    apiGet("/api/settings").then((s) => {
-      if (s.startguthaben) setStartBalance(Number(s.startguthaben));
-    }).catch(() => {});
   }, [live]);
-
-  const saveStartBalance = () => {
-    apiPost("/api/settings", { startguthaben: startBalance })
-      .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2000); })
-      .catch(() => alert("Speichern fehlgeschlagen — bist du mit Discord angemeldet?"));
-  };
 
   return (
     <>
       <SectionTitle eyebrow="Wirtschaft" title="Bank-System" action={<PrimaryBtn icon={Plus}>Konto verwalten</PrimaryBtn>} />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
         <StatCard icon={Wallet} label="Gesamtguthaben aller Nutzer" value={fmtMoney(0)} accent={C.gold} />
-        <StatCard icon={TrendingUp} label="Umsatz heute" value={fmtMoney(0)} accent={C.green} />
+        <StatCard icon={TrendingUp} label="Umsatz heute" value={fmtMoney(48200)} delta="+6,4%" deltaUp accent={C.green} />
         <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
           <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Startguthaben (frei einstellbar)</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -342,7 +352,7 @@ function BankSection() {
               type="number" value={startBalance} onChange={(e) => setStartBalance(e.target.value)}
               style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
             />
-            <PrimaryBtn onClick={saveStartBalance}>{saved ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
+            <PrimaryBtn>Speichern</PrimaryBtn>
           </div>
         </Panel>
       </div>
@@ -414,29 +424,74 @@ function ShopSection() {
 function DienstSection() {
   const { live } = useLive();
   const [duty, setDuty] = useState(DUTY);
+  const [newName, setNewName] = useState("");
+  const [newTotal, setNewTotal] = useState(5);
+
+  const refresh = () => apiGet("/api/dienst").then(setDuty).catch(() => {});
 
   useEffect(() => {
     if (!live) return;
-    apiGet("/api/dienst").then(setDuty).catch(() => {});
+    refresh();
   }, [live]);
+
+  const toggle = (d) => {
+    if (!live) {
+      setDuty(duty.map((x) => x.id === d.id ? { ...x, onDuty: x.onDuty > 0 ? 0 : Math.min(1, x.total) } : x));
+      return;
+    }
+    apiPostQuery(`/api/dienst/${d.id}/toggle`, {}).then(refresh)
+      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const createFraction = () => {
+    if (!newName.trim()) return;
+    if (!live) {
+      setDuty([...duty, { id: Date.now(), fraction: newName, onDuty: 0, total: Number(newTotal), hoursToday: 0 }]);
+      setNewName(""); setNewTotal(5);
+      return;
+    }
+    apiPostQuery("/api/dienst", { name: newName, total: newTotal })
+      .then(() => { setNewName(""); setNewTotal(5); refresh(); })
+      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const removeFraction = (d) => {
+    if (!live) { setDuty(duty.filter((x) => x.id !== d.id)); return; }
+    apiDelete(`/api/dienst/${d.id}`).then(refresh)
+      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
 
   return (
     <>
       <SectionTitle eyebrow="Fraktionen" title="Dienstsystem" />
+      <Panel style={{ padding: 16, marginBottom: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name der Fraktion (z.B. Polizei)"
+          style={{ flex: 2, minWidth: 180, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <input
+          type="number" value={newTotal} onChange={(e) => setNewTotal(e.target.value)} placeholder="Plätze"
+          style={{ width: 90, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <PrimaryBtn icon={Plus} onClick={createFraction}>Fraktion anlegen</PrimaryBtn>
+      </Panel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 14 }}>
-        {duty.map((d, i) => (
-          <Panel key={d.fraction} style={{ padding: 18 }}>
+        {duty.map((d) => (
+          <Panel key={d.id || d.fraction} style={{ padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text }}>{d.fraction}</div>
-              <button
-                onClick={() => setDuty(duty.map((x, xi) => xi === i ? { ...x, onDuty: x.onDuty > 0 ? 0 : Math.min(2, x.total) } : x))}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5, border: `1px solid ${d.onDuty > 0 ? C.green : C.border}`,
-                  background: d.onDuty > 0 ? `${C.green}1A` : "transparent", color: d.onDuty > 0 ? C.green : C.muted,
-                  borderRadius: 6, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace",
-                }}>
-                <Power size={12} /> {d.onDuty > 0 ? "IM DIENST" : "AUSSER DIENST"}
-              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={() => toggle(d)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5, border: `1px solid ${d.onDuty > 0 ? C.green : C.border}`,
+                    background: d.onDuty > 0 ? `${C.green}1A` : "transparent", color: d.onDuty > 0 ? C.green : C.muted,
+                    borderRadius: 6, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace",
+                  }}>
+                  <Power size={12} /> {d.onDuty > 0 ? "IM DIENST" : "AUSSER DIENST"}
+                </button>
+                <IconBtn icon={Trash2} danger onClick={() => removeFraction(d)} />
+              </div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: C.muted, marginBottom: 6 }}>
               <span>{d.onDuty} / {d.total} im Dienst</span>
@@ -451,6 +506,7 @@ function DienstSection() {
     </>
   );
 }
+
 
 function GiveawaySection() {
   return (
@@ -598,11 +654,7 @@ function UsersSection() {
 }
 
 function SecuritySection() {
-  const sessions = [
-    { user: "Finn_Ostwald", device: "Chrome · Windows", ip: "94.212.xx.xx", time: "aktiv jetzt" },
-    { user: "Lea.Vance", device: "Safari · macOS", ip: "77.183.xx.xx", time: "vor 22 Min" },
-    { user: "KaiRieper", device: "Discord Mobile", ip: "212.90.xx.xx", time: "vor 3 Std" },
-  ];
+  const sessions = [];
   return (
     <>
       <SectionTitle eyebrow="Zugriff" title="Sicherheit" />
