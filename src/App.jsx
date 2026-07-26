@@ -20,6 +20,16 @@ async function apiGet(path) {
   return res.json();
 }
 
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
+  return res.json();
+}
 const LiveContext = createContext({ live: false, user: null });
 const useLive = () => useContext(LiveContext);
 
@@ -302,12 +312,22 @@ function BankSection() {
   const [startBalance, setStartBalance] = useState(500);
   const [accounts, setAccounts] = useState(USERS);
   const [txns, setTxns] = useState(TRANSACTIONS);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!live) return;
     apiGet("/api/bank/accounts").then(setAccounts).catch(() => {});
     apiGet("/api/bank/transactions").then(setTxns).catch(() => {});
+    apiGet("/api/settings").then((s) => {
+      if (s.startguthaben) setStartBalance(Number(s.startguthaben));
+    }).catch(() => {});
   }, [live]);
+
+  const saveStartBalance = () => {
+    apiPost("/api/settings", { startguthaben: startBalance })
+      .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2000); })
+      .catch(() => alert("Speichern fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
 
   return (
     <>
@@ -322,7 +342,7 @@ function BankSection() {
               type="number" value={startBalance} onChange={(e) => setStartBalance(e.target.value)}
               style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
             />
-            <PrimaryBtn>Speichern</PrimaryBtn>
+            <PrimaryBtn onClick={saveStartBalance}>{saved ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
           </div>
         </Panel>
       </div>
