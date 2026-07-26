@@ -37,7 +37,11 @@ async function apiPostQuery(path, params) {
     method: "POST",
     credentials: "include",
   });
-  if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
+  if (!res.ok) {
+    let detail = `API ${path} -> ${res.status}`;
+    try { const body = await res.json(); if (body.detail) detail = body.detail; } catch (_) {}
+    throw new Error(detail);
+  }
   return res.json();
 }
 
@@ -433,8 +437,12 @@ function DienstSection() {
   const [newName, setNewName] = useState("");
   const [newTotal, setNewTotal] = useState(5);
   const [newChannelId, setNewChannelId] = useState("");
+  const [myFraction, setMyFraction] = useState(null);
 
-  const refresh = () => apiGet("/api/dienst").then(setDuty).catch(() => {});
+  const refresh = () => {
+    apiGet("/api/dienst").then(setDuty).catch(() => {});
+    apiGet("/api/dienst/me").then((r) => setMyFraction(r.onDutyFraction)).catch(() => {});
+  };
 
   useEffect(() => {
     if (!live) return;
@@ -447,7 +455,7 @@ function DienstSection() {
       return;
     }
     apiPostQuery(`/api/dienst/${d.id}/toggle`, {}).then(refresh)
-      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
 
   const createFraction = () => {
@@ -459,7 +467,7 @@ function DienstSection() {
     }
     apiPostQuery("/api/dienst", { name: newName, total: newTotal, channel_id: newChannelId || "" })
       .then(() => { setNewName(""); setNewTotal(5); setNewChannelId(""); refresh(); })
-      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
 
   const removeFraction = (d) => {
@@ -471,6 +479,15 @@ function DienstSection() {
   return (
     <>
       <SectionTitle eyebrow="Fraktionen" title="Dienstsystem" />
+      {live && myFraction && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "10px 14px",
+          background: `${C.green}14`, border: `1px solid ${C.green}40`, borderRadius: 8,
+          fontSize: 13, color: C.green, fontFamily: "'JetBrains Mono', monospace",
+        }}>
+          <Power size={14} /> Du bist aktuell im Dienst bei <strong>{myFraction}</strong>
+        </div>
+      )}
       <Panel style={{ padding: 16, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input
           value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name der Fraktion (z.B. Polizei)"
