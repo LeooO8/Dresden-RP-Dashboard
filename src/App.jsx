@@ -460,28 +460,100 @@ function BankSection() {
 }
 
 function ShopSection() {
-  const cats = [...new Set(SHOP_ITEMS.map((i) => i.category))];
+  const { live } = useLive();
+  const [items, setItems] = useState(SHOP_ITEMS);
+  const [newName, setNewName] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+
+  const refresh = () => apiGet("/api/shop/items").then(setItems).catch(() => {});
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+  }, [live]);
+
+  const cats = [...new Set(items.map((i) => i.category).filter(Boolean))];
+
+  const createItem = () => {
+    if (!newName.trim() || !newCategory.trim() || !newPrice) return;
+    if (!live) {
+      setItems([...items, { id: Date.now(), name: newName, category: newCategory, price: Number(newPrice), sold: 0 }]);
+      setNewName(""); setNewCategory(""); setNewPrice("");
+      return;
+    }
+    apiPostQuery("/api/shop/items", { name: newName, category: newCategory, price: newPrice })
+      .then(() => { setNewName(""); setNewCategory(""); setNewPrice(""); refresh(); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const editItem = (it) => {
+    const name = prompt("Name des Artikels:", it.name);
+    if (name === null) return;
+    const category = prompt("Kategorie:", it.category);
+    if (category === null) return;
+    const priceStr = prompt("Preis (₡):", it.price);
+    if (priceStr === null) return;
+    const price = Number(priceStr);
+    if (Number.isNaN(price)) return alert("Bitte einen gültigen Preis eingeben.");
+    if (!live) {
+      setItems(items.map((x) => x.id === it.id ? { ...x, name, category, price } : x));
+      return;
+    }
+    apiPostQuery(`/api/shop/items/${it.id}`, { name, category, price }).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const removeItem = (it) => {
+    if (!confirm(`"${it.name}" wirklich löschen?`)) return;
+    if (!live) { setItems(items.filter((x) => x.id !== it.id)); return; }
+    apiDelete(`/api/shop/items/${it.id}`).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
   return (
     <>
-      <SectionTitle eyebrow="Wirtschaft" title="Shop-System" action={<PrimaryBtn icon={Plus}>Artikel erstellen</PrimaryBtn>} />
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        {cats.map((c) => <Badge key={c} color={C.gold}>{c}</Badge>)}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 14 }}>
-        {SHOP_ITEMS.map((it) => (
-          <Panel key={it.id} style={{ padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-              <Badge color={C.cyan}>{it.category}</Badge>
-              <div style={{ display: "flex", gap: 6 }}>
-                <IconBtn icon={Pencil} /><IconBtn icon={Trash2} danger />
+      <SectionTitle eyebrow="Wirtschaft" title="Shop-System" />
+      <Panel style={{ padding: 16, marginBottom: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Artikelname"
+          style={{ flex: 1.4, minWidth: 160, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <input
+          value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Kategorie (z.B. Rollen)"
+          style={{ flex: 1, minWidth: 140, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <input
+          type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="Preis"
+          style={{ width: 110, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+        />
+        <PrimaryBtn icon={Plus} onClick={createItem}>Artikel erstellen</PrimaryBtn>
+      </Panel>
+      {cats.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+          {cats.map((c) => <Badge key={c} color={C.gold}>{c}</Badge>)}
+        </div>
+      )}
+      {items.length === 0 ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Artikel im Shop.</div></Panel>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 14 }}>
+          {items.map((it) => (
+            <Panel key={it.id} style={{ padding: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <Badge color={C.cyan}>{it.category}</Badge>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <IconBtn icon={Pencil} onClick={() => editItem(it)} />
+                  <IconBtn icon={Trash2} danger onClick={() => removeItem(it)} />
+                </div>
               </div>
-            </div>
-            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>{it.name}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold, fontSize: 15, fontWeight: 700 }}>{fmtMoney(it.price)}</div>
-            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{it.sold}× verkauft</div>
-          </Panel>
-        ))}
-      </div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>{it.name}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold, fontSize: 15, fontWeight: 700 }}>{fmtMoney(it.price)}</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{it.sold}× verkauft</div>
+            </Panel>
+          ))}
+        </div>
+      )}
     </>
   );
 }
