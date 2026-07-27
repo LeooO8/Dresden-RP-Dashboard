@@ -394,27 +394,27 @@ function BankSection() {
           value={fmtMoney(accounts.reduce((sum, a) => sum + (a.balance || 0), 0))} accent={C.gold} />
         <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
           <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Startguthaben (frei einstellbar)</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               type="number" value={startBalance} onChange={(e) => setStartBalance(e.target.value)}
-              style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+              style={{ flex: 1, minWidth: 0, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
             />
             <PrimaryBtn onClick={saveStartBalance}>{saved ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
           </div>
         </Panel>
         <Panel style={{ padding: 18, flex: 1, minWidth: 260 }}>
           <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Überweisen</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <select
               value={toId} onChange={(e) => setToId(e.target.value)}
-              style={{ flex: 1.4, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+              style={{ flex: 1.4, minWidth: 120, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
             >
               <option value="">Empfänger wählen…</option>
               {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <input
               type="number" placeholder="Betrag" value={amount} onChange={(e) => setAmount(e.target.value)}
-              style={{ width: 100, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+              style={{ flex: 1, minWidth: 80, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
             />
             <PrimaryBtn onClick={doTransfer}>Senden</PrimaryBtn>
           </div>
@@ -852,18 +852,31 @@ export default function DiscordBotDashboard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
-        input:focus { outline: none; border-color: ${C.gold} !important; }
+        html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100%; background: ${C.bg}; }
+        input:focus, select:focus { outline: none; border-color: ${C.gold} !important; }
         ::-webkit-scrollbar { height: 6px; width: 6px; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 99px; }
+
+        .app-layout { display: flex; }
+        .app-sidebar { width: 232px; flex-shrink: 0; }
+        .app-main { flex: 1; min-width: 0; padding: 28px 32px; max-width: 1180px; }
+
+        @media (max-width: 860px) {
+          .app-layout { flex-direction: column; }
+          .app-sidebar { width: 100%; overflow-x: auto; padding: 12px !important; }
+          .app-sidebar-nav { display: flex; flex-direction: row !important; gap: 4px; }
+          .app-sidebar-nav button { white-space: nowrap; }
+          .app-main { padding: 16px !important; max-width: 100%; }
+        }
       `}</style>
 
       <Ticker overview={overview} />
 
-      <div style={{ display: "flex" }}>
+      <div className="app-layout">
         {/* Sidebar */}
-        <div style={{ width: 232, flexShrink: 0, borderRight: `1px solid ${C.border}`, minHeight: "calc(100vh - 40px)", padding: "20px 12px" }}>
+        <div className="app-sidebar" style={{ borderRight: `1px solid ${C.border}`, minHeight: "calc(100vh - 40px)", padding: "20px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px", marginBottom: 26 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 15 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 15, flexShrink: 0 }}>
               ⌁
             </div>
             <div>
@@ -872,6 +885,7 @@ export default function DiscordBotDashboard() {
             </div>
           </div>
 
+          <div className="app-sidebar-nav">
           {NAV.map((n) => {
             const Icon = n.icon;
             const isActive = active === n.key;
@@ -895,10 +909,11 @@ export default function DiscordBotDashboard() {
               </button>
             );
           })}
+          </div>
         </div>
 
         {/* Main */}
-        <div style={{ flex: 1, padding: "28px 32px", maxWidth: 1180 }}>
+        <div className="app-main">
           <Active />
         </div>
       </div>
