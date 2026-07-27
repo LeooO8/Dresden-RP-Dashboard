@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Landmark, ShoppingBag, ShieldHalf, Gift, ScrollText,
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
-  KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi
+  KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -108,6 +108,7 @@ const NAV = [
   { key: "bank", label: "Bank-System", icon: Landmark },
   { key: "shop", label: "Shop-System", icon: ShoppingBag },
   { key: "dienst", label: "Dienstsystem", icon: ShieldHalf },
+  { key: "afk", label: "AFK-System", icon: Moon },
   { key: "giveaway", label: "Giveaways", icon: Gift },
   { key: "logs", label: "Audit Logs", icon: ScrollText },
   { key: "stats", label: "Statistiken", icon: BarChart3 },
@@ -598,6 +599,81 @@ function DienstSection() {
 }
 
 
+function AfkSection() {
+  const { live } = useLive();
+  const [list, setList] = useState([]);
+  const [myAfk, setMyAfk] = useState(null);
+  const [reason, setReason] = useState("");
+
+  const refresh = () => {
+    apiGet("/api/afk").then(setList).catch(() => {});
+    apiGet("/api/afk/me").then(setMyAfk).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+  }, [live]);
+
+  const setAfk = () => {
+    if (!live) return alert("Nur im Live-Modus möglich.");
+    apiPostQuery("/api/afk/set", { grund: reason || "Kein Grund angegeben" })
+      .then(() => { setReason(""); refresh(); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const clearAfk = () => {
+    if (!live) return alert("Nur im Live-Modus möglich.");
+    apiPostQuery("/api/afk/clear", {}).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  return (
+    <>
+      <SectionTitle eyebrow="Status" title="AFK-System" />
+
+      {live && myAfk?.reason ? (
+        <Panel style={{ padding: 16, marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: `${C.gold}0F`, borderColor: `${C.gold}40` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.gold, fontSize: 13 }}>
+            <Moon size={16} /> Du bist aktuell AFK: <strong>{myAfk.reason}</strong>
+          </div>
+          <PrimaryBtn onClick={clearAfk}>AFK beenden</PrimaryBtn>
+        </Panel>
+      ) : (
+        <Panel style={{ padding: 16, marginBottom: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Grund (optional)"
+            style={{ flex: 1, minWidth: 200, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+          />
+          <PrimaryBtn icon={Moon} onClick={setAfk}>AFK setzen</PrimaryBtn>
+        </Panel>
+      )}
+
+      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
+        Aktuell AFK ({list.length})
+      </div>
+      <Panel style={{ overflow: "hidden" }}>
+        {list.length === 0 ? (
+          <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Niemand ist gerade AFK.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr><Th>Benutzer</Th><Th>Grund</Th><Th align="right">Seit</Th></tr></thead>
+            <tbody>
+              {list.map((u) => (
+                <tr key={u.id}>
+                  <Td>{u.name}</Td>
+                  <Td style={{ color: C.muted }}>{u.reason}</Td>
+                  <Td align="right" style={{ color: C.muted, fontSize: 12 }}>{u.since ? new Date(u.since).toLocaleString("de-DE") : "—"}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </>
+  );
+}
+
 function GiveawaySection() {
   return (
     <>
@@ -815,7 +891,7 @@ function SettingsSection() {
 
 const SECTIONS = {
   dashboard: DashboardSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
-  giveaway: GiveawaySection, logs: LogsSection, stats: StatsSection, users: UsersSection,
+  afk: AfkSection, giveaway: GiveawaySection, logs: LogsSection, stats: StatsSection, users: UsersSection,
   security: SecuritySection, settings: SettingsSection,
 };
 
