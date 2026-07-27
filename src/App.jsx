@@ -865,7 +865,7 @@ export default function DiscordBotDashboard() {
           .app-layout { flex-direction: column; }
           .app-sidebar { width: 100%; overflow-x: auto; padding: 12px !important; }
           .app-sidebar-nav { display: flex; flex-direction: row !important; gap: 4px; }
-          .app-sidebar-nav button { white-space: nowrap; }
+          .app-sidebar-nav button { white-space: nowrap; width: auto !important; flex-shrink: 0; }
           .app-main { padding: 16px !important; max-width: 100%; }
         }
       `}</style>
