@@ -245,7 +245,7 @@ function Ticker({ overview }) {
     { label: "MITGLIEDER", value: overview ? overview.member_count.toLocaleString("de-DE") : "0", color: C.text },
     { label: "IM DIENST", value: overview ? overview.on_duty : "7", color: C.cyan },
     { label: "GESAMTGUTHABEN", value: fmtMoney(overview ? overview.total_balance : 0), color: C.gold },
-    { label: "UPTIME", value: "14T 6H 22M", color: C.text },
+    { label: "UPTIME", value: overview ? formatUptime(overview.uptime_seconds) : "0T 0H 0M", color: C.text },
   ];
   return (
     <div style={{
@@ -290,15 +290,33 @@ function Ticker({ overview }) {
 /* ---------------------------------------------------------
    SECTIONS
 --------------------------------------------------------- */
+function formatUptime(seconds) {
+  if (!seconds || seconds < 0) return "0M";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${days}T ${hours}H ${minutes}M`;
+}
+
 function DashboardSection() {
+  const { live } = useLive();
+  const [overview, setOverview] = useState(null);
+
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/overview").then(setOverview).catch(() => {});
+  }, [live]);
+
+  const logs = overview?.recent_logs || [];
+
   return (
     <>
       <SectionTitle eyebrow="Systemübersicht" title="Dashboard" />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
-        <StatCard icon={Users} label="Mitglieder gesamt" value="0" accent={C.cyan} />
-        <StatCard icon={ShieldHalf} label="Aktive Dienste" value="7" delta="+2" deltaUp accent={C.green} />
-        <StatCard icon={Coins} label="Gesamtguthaben" value={fmtMoney(0)} accent={C.gold} />
-        <StatCard icon={Activity} label="Bot-Uptime" value="0%" accent={C.text} />
+        <StatCard icon={Users} label="Mitglieder gesamt" value={overview ? overview.member_count : "0"} accent={C.cyan} />
+        <StatCard icon={ShieldHalf} label="Aktive Dienste" value={overview ? overview.on_duty : "0"} accent={C.green} />
+        <StatCard icon={Coins} label="Gesamtguthaben" value={fmtMoney(overview ? overview.total_balance : 0)} accent={C.gold} />
+        <StatCard icon={Activity} label="Bot-Uptime" value={formatUptime(overview?.uptime_seconds)} accent={C.text} />
       </div>
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
         <Panel style={{ padding: 18, flex: 2 }}>
@@ -306,7 +324,7 @@ function DashboardSection() {
             Live-Systemstatus
           </div>
           {[
-            { name: "Discord Gateway", ok: true },
+            { name: "Discord Gateway", ok: overview?.bot_status === "online" },
             { name: "Bank-System", ok: true },
             { name: "Shop-System", ok: true },
             { name: "Dienstsystem", ok: true },
@@ -315,7 +333,7 @@ function DashboardSection() {
           ].map((s, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < 5 ? `1px solid ${C.border}` : "none" }}>
               <span style={{ fontSize: 13.5, color: C.text }}>{s.name}</span>
-              <Badge color={C.green}><StatusDot status="online" /> Betriebsbereit</Badge>
+              <Badge color={s.ok ? C.green : C.red}><StatusDot status={s.ok ? "online" : "offline"} /> {s.ok ? "Betriebsbereit" : "Gestört"}</Badge>
             </div>
           ))}
         </Panel>
@@ -323,12 +341,14 @@ function DashboardSection() {
           <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
             Letzte Aktionen
           </div>
-          {LOGS.slice(0, 5).map((l) => (
+          {logs.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: C.muted }}>Noch keine Aktionen.</div>
+          ) : logs.map((l) => (
             <div key={l.id} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
-              <span style={{ width: 6, height: 6, marginTop: 5, borderRadius: 99, background: LOG_META[l.type].color, flexShrink: 0 }} />
+              <span style={{ width: 6, height: 6, marginTop: 5, borderRadius: 99, background: LOG_META[l.type]?.color || C.muted, flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>{l.text}</div>
-                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>{l.time}</div>
+                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>{new Date(l.time).toLocaleString("de-DE")}</div>
               </div>
             </div>
           ))}
