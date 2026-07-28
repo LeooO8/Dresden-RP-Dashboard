@@ -945,12 +945,33 @@ function UsersSection() {
   const [q, setQ] = useState("");
   const [userList, setUserList] = useState(USERS);
 
+  const refresh = () => apiGet("/api/users").then(setUserList).catch(() => {});
+
   useEffect(() => {
     if (!live) return;
-    apiGet("/api/users").then(setUserList).catch(() => {});
+    refresh();
   }, [live]);
 
   const filtered = userList.filter((u) => u.name.toLowerCase().includes(q.toLowerCase()));
+
+  const addBalance = (u) => {
+    const input = prompt(`Guthaben zu ${u.name} hinzufügen — Betrag eingeben:`);
+    if (input === null || input.trim() === "") return;
+    const delta = Number(input);
+    if (Number.isNaN(delta)) return alert("Bitte eine Zahl eingeben.");
+    if (!live) { setUserList(userList.map((x) => x.id === u.id ? { ...x, balance: x.balance + delta } : x)); return; }
+    apiPostQuery(`/api/users/${u.id}/balance`, { delta }).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const editRole = (u) => {
+    const role = prompt(`Rolle für ${u.name} (z.B. Mitglied, Moderator, Admin, Owner):`, u.role);
+    if (role === null || !role.trim()) return;
+    if (!live) { setUserList(userList.map((x) => x.id === u.id ? { ...x, role } : x)); return; }
+    apiPostQuery(`/api/users/${u.id}/role`, { role }).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
   return (
     <>
       <SectionTitle eyebrow="Verwaltung" title="Benutzerverwaltung" />
@@ -961,6 +982,9 @@ function UsersSection() {
           style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 7, padding: "9px 12px 9px 32px", color: C.text, fontSize: 13 }}
         />
       </div>
+      {filtered.length === 0 ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Keine Benutzer gefunden.</div></Panel>
+      ) : (
       <Panel style={{ overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><Th>Benutzer</Th><Th>Status</Th><Th>Rolle</Th><Th>Kontostand</Th><Th>Beigetreten</Th><Th align="right">Aktion</Th></tr></thead>
@@ -970,7 +994,7 @@ function UsersSection() {
                 <Td>
                   <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                     <div style={{ width: 26, height: 26, borderRadius: 7, background: C.panelAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: "'Rajdhani', sans-serif" }}>
-                      {u.avatar}
+                      {u.name?.[0]?.toUpperCase() || "?"}
                     </div>
                     {u.name}
                   </div>
@@ -978,10 +1002,11 @@ function UsersSection() {
                 <Td><span style={{ display: "flex", alignItems: "center", gap: 6 }}><StatusDot status={u.status} /><span style={{ color: C.muted, fontSize: 12, textTransform: "capitalize" }}>{u.status}</span></span></Td>
                 <Td style={{ color: C.muted, fontSize: 12.5 }}>{u.role}</Td>
                 <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold }}>{fmtMoney(u.balance)}</Td>
-                <Td style={{ color: C.muted, fontSize: 12 }}>{u.joined}</Td>
+                <Td style={{ color: C.muted, fontSize: 12 }}>{new Date(u.joined).toLocaleDateString("de-DE")}</Td>
                 <Td align="right">
                   <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <IconBtn icon={Plus} /><IconBtn icon={Pencil} />
+                    <IconBtn icon={Plus} onClick={() => addBalance(u)} />
+                    <IconBtn icon={Pencil} onClick={() => editRole(u)} />
                   </div>
                 </Td>
               </tr>
@@ -989,6 +1014,7 @@ function UsersSection() {
           </tbody>
         </table>
       </Panel>
+      )}
     </>
   );
 }
