@@ -272,7 +272,21 @@ function Ticker({ overview }) {
           {live ? "LIVE VERBUNDEN" : "DEMO-DATEN"}
         </span>
         {live && user ? (
-          <span style={{ fontSize: 11.5, color: C.text }}>{user.username}</span>
+          <>
+            <span style={{ fontSize: 11.5, color: C.text }}>{user.username}</span>
+            <button
+              onClick={() => {
+                apiPost("/auth/logout", {}).finally(() => window.location.reload());
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.muted,
+                background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, padding: "5px 10px",
+                cursor: "pointer", fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              Abmelden
+            </button>
+          </>
         ) : (
           <a href={`${API_BASE}/auth/login`} style={{
             display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "#1A1400",
@@ -1077,28 +1091,56 @@ function SecuritySection() {
   );
 }
 
+const SETTINGS_GROUPS = [
+  { title: "Bot-Einstellungen", fields: [["bot_praefix", "Bot-Präfix"], ["standard_sprache", "Standard-Sprache"], ["log_kanal", "Log-Kanal (Kanal-ID)"]] },
+  { title: "Bank-Einstellungen", fields: [["startguthaben", "Startguthaben"], ["max_ueberweisung", "Max. Überweisungsbetrag"], ["zinssatz_taeglich", "Zinssatz (täglich, %)"]] },
+  { title: "Shop-Einstellungen", fields: [["shop_standardkategorie", "Standardkategorie"], ["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
+  { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
+  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle (Rollen-ID)"], ["ankuendigungskanal", "Ankündigungskanal (Kanal-ID)"]] },
+];
+
 function SettingsSection() {
-  const groups = [
-    { title: "Bot-Einstellungen", fields: ["Bot-Präfix", "Standard-Sprache", "Log-Kanal"] },
-    { title: "Bank-Einstellungen", fields: ["Startguthaben", "Max. Überweisungsbetrag", "Zinssatz (täglich)"] },
-    { title: "Shop-Einstellungen", fields: ["Standardkategorie", "Kaufbestätigung erforderlich"] },
-    { title: "Dienst-Einstellungen", fields: ["Vergütung pro Stunde", "Automatischer Dienstende nach"] },
-    { title: "Rollen & Kanäle", fields: ["Admin-Rolle", "Ankündigungskanal", "Log-Kanal"] },
-  ];
+  const { live } = useLive();
+  const [values, setValues] = useState({});
+  const [savedGroup, setSavedGroup] = useState(null);
+
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/settings").then(setValues).catch(() => {});
+  }, [live]);
+
+  const setField = (key, val) => setValues((v) => ({ ...v, [key]: val }));
+
+  const saveGroup = (group) => {
+    const payload = {};
+    group.fields.forEach(([key]) => { payload[key] = values[key] ?? ""; });
+    if (!live) return alert("Nur im Live-Modus möglich.");
+    apiPost("/api/settings", payload)
+      .then(() => { setSavedGroup(group.title); setTimeout(() => setSavedGroup(null), 2000); })
+      .catch((err) => alert(err.message || "Speichern fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
   return (
     <>
       <SectionTitle eyebrow="Konfiguration" title="Einstellungen" />
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
+        Aktuell nutzt der Bot direkt nur das <strong>Startguthaben</strong>. Die übrigen Felder werden schon gespeichert und stehen bereit, sobald die jeweilige Funktion eingebaut ist.
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 14 }}>
-        {groups.map((g) => (
+        {SETTINGS_GROUPS.map((g) => (
           <Panel key={g.title} style={{ padding: 18 }}>
             <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 14 }}>{g.title}</div>
-            {g.fields.map((f) => (
-              <div key={f} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{f}</div>
-                <input style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }} placeholder="—" />
+            {g.fields.map(([key, label]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
+                <input
+                  value={values[key] ?? ""} onChange={(e) => setField(key, e.target.value)}
+                  style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
+                  placeholder="—"
+                />
               </div>
             ))}
-            <PrimaryBtn>Speichern</PrimaryBtn>
+            <PrimaryBtn onClick={() => saveGroup(g)}>{savedGroup === g.title ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
           </Panel>
         ))}
       </div>
