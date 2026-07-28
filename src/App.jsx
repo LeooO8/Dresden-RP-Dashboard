@@ -767,21 +767,88 @@ function AfkSection() {
 }
 
 function GiveawaySection() {
+  const { live } = useLive();
+  const [list, setList] = useState(GIVEAWAYS);
+  const [preis, setPreis] = useState("");
+  const [dauer, setDauer] = useState(60);
+  const [channelId, setChannelId] = useState("");
+
+  const refresh = () => apiGet("/api/giveaways").then(setList).catch(() => {});
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+    const interval = setInterval(refresh, 15000);
+    return () => clearInterval(interval);
+  }, [live]);
+
+  const create = () => {
+    if (!preis.trim() || !dauer || !channelId.trim()) return;
+    if (!live) return alert("Nur im Live-Modus möglich.");
+    apiPostQuery("/api/giveaways", { preis, dauer_minuten: dauer, channel_id: channelId })
+      .then(() => { setPreis(""); setDauer(60); setChannelId(""); refresh(); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const end = (g) => {
+    if (!confirm(`Giveaway "${g.prize}" jetzt beenden und auslosen?`)) return;
+    apiPostQuery(`/api/giveaways/${g.id}/end`, {}).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen"));
+  };
+
+  const reroll = (g) => {
+    if (!confirm(`Neuen Gewinner für "${g.prize}" auslosen?`)) return;
+    apiPostQuery(`/api/giveaways/${g.id}/reroll`, {}).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen"));
+  };
+
   return (
     <>
-      <SectionTitle eyebrow="Community" title="Giveaway-System" action={<PrimaryBtn icon={Plus}>Giveaway erstellen</PrimaryBtn>} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 14 }}>
-        {GIVEAWAYS.map((g) => (
-          <Panel key={g.id} style={{ padding: 18 }}>
-            <div style={{ marginBottom: 10 }}>
-              <Badge color={g.status === "aktiv" ? C.green : C.muted}>{g.status === "aktiv" ? "Aktiv" : "Beendet"}</Badge>
-            </div>
-            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 8 }}>{g.prize}</div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 4 }}>{g.entries} Teilnahmen</div>
-            <div style={{ fontSize: 12.5, color: C.muted }}>{g.status === "aktiv" ? `Endet ${g.ends}` : `Gewinner: ${g.winner}`}</div>
-          </Panel>
-        ))}
+      <SectionTitle eyebrow="Community" title="Giveaway-System" />
+      <Panel style={{ padding: 16, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={preis} onChange={(e) => setPreis(e.target.value)} placeholder="Preis (z.B. VIP Gold Rolle)"
+          style={{ flex: 1.4, minWidth: 180, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <input
+          type="number" value={dauer} onChange={(e) => setDauer(e.target.value)} placeholder="Minuten"
+          style={{ width: 100, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+        />
+        <input
+          value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="Kanal-ID"
+          style={{ flex: 1, minWidth: 160, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+        />
+        <PrimaryBtn icon={Gift} onClick={create}>Giveaway erstellen</PrimaryBtn>
+      </Panel>
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 18 }}>
+        Kanal-ID: Rechtsklick auf den Kanal in Discord → "ID kopieren" (Entwicklermodus muss aktiv sein). Teilnahme läuft über eine 🎉-Reaktion auf die gepostete Nachricht.
       </div>
+      {list.length === 0 ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Giveaways.</div></Panel>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 14 }}>
+          {list.map((g) => (
+            <Panel key={g.id} style={{ padding: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <Badge color={g.status === "aktiv" ? C.green : C.muted}>{g.status === "aktiv" ? "Aktiv" : "Beendet"}</Badge>
+                <span style={{ fontSize: 10.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>#{g.id}</span>
+              </div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 8 }}>{g.prize}</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 4 }}>{g.entries} Teilnahmen</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>
+                {g.status === "aktiv" ? `Endet: ${g.ends ? new Date(g.ends).toLocaleString("de-DE") : "—"}` : `Gewinner: ${g.winner || "niemand teilgenommen"}`}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {g.status === "aktiv" ? (
+                  <PrimaryBtn onClick={() => end(g)}>Jetzt beenden</PrimaryBtn>
+                ) : (
+                  <PrimaryBtn onClick={() => reroll(g)}>Neu auslosen</PrimaryBtn>
+                )}
+              </div>
+            </Panel>
+          ))}
+        </div>
+      )}
     </>
   );
 }
