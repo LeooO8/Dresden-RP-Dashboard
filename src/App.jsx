@@ -899,27 +899,38 @@ function LogsSection() {
 }
 
 function StatsSection() {
-  const bars = [0, 0, 0, 0, 0, 0, 0];
-  const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const { live } = useLive();
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/stats").then(setStats).catch(() => {});
+  }, [live]);
+
+  const days = stats?.weekly_activity?.map((d) => d.day) || ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const counts = stats?.weekly_activity?.map((d) => d.count) || [0, 0, 0, 0, 0, 0, 0];
+  const max = Math.max(1, ...counts);
+
   return (
     <>
       <SectionTitle eyebrow="Auswertung" title="Statistiken" />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
-        <StatCard icon={Users} label="Mitglieder" value="0" accent={C.cyan} />
-        <StatCard icon={Activity} label="Aktive Nutzer (7T)" value="0" accent={C.green} />
-        <StatCard icon={Coins} label="Gesamtvermögen" value={fmtMoney(0)} accent={C.gold} />
-        <StatCard icon={ShoppingBag} label="Shop-Verkäufe" value="0" accent={C.cyan} />
-        <StatCard icon={Clock} label="Dienststunden (heute)" value="0h" accent={C.green} />
-        <StatCard icon={Gift} label="Giveaways gesamt" value="0" accent={C.gold} />
+        <StatCard icon={Users} label="Mitglieder" value={stats ? stats.member_count : "0"} accent={C.cyan} />
+        <StatCard icon={Activity} label="Aktive Nutzer (7T)" value={stats ? stats.active_users_7d : "0"} accent={C.green} />
+        <StatCard icon={Coins} label="Gesamtvermögen" value={fmtMoney(stats ? stats.total_balance : 0)} accent={C.gold} />
+        <StatCard icon={ShoppingBag} label="Shop-Verkäufe" value={stats ? stats.shop_sales : "0"} accent={C.cyan} />
+        <StatCard icon={Clock} label="Dienststunden (heute)" value={`${stats ? stats.duty_hours_today : 0}h`} accent={C.green} />
+        <StatCard icon={Gift} label="Giveaways gesamt" value={stats ? stats.giveaway_count : "0"} accent={C.gold} />
       </div>
       <Panel style={{ padding: 20 }}>
         <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 18 }}>
-          Aktivität diese Woche
+          Aktivität diese Woche (Anzahl protokollierter Aktionen)
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 140 }}>
-          {bars.map((h, i) => (
+          {counts.map((c, i) => (
             <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div style={{ width: "100%", height: `${h}%`, borderRadius: "4px 4px 0 0", background: `linear-gradient(to top, ${C.gold}, ${C.cyan})` }} />
+              <div style={{ fontSize: 10.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{c}</div>
+              <div style={{ width: "100%", height: `${Math.max(2, (c / max) * 100)}%`, borderRadius: "4px 4px 0 0", background: `linear-gradient(to top, ${C.gold}, ${C.cyan})` }} />
               <span style={{ fontSize: 11, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{days[i]}</span>
             </div>
           ))}
