@@ -882,11 +882,15 @@ function LogsSection() {
         ))}
       </div>
       <Panel style={{ overflow: "hidden" }}>
-        {filtered.map((l, i) => (
+        {filtered.length === 0 ? (
+          <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Keine Einträge gefunden.</div>
+        ) : filtered.map((l, i) => (
           <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
-            <Badge color={LOG_META[l.type].color}>{LOG_META[l.type].label}</Badge>
+            <Badge color={(LOG_META[l.type] || LOG_META.system).color}>{(LOG_META[l.type] || LOG_META.system).label}</Badge>
             <span style={{ flex: 1, fontSize: 13, color: C.text }}>{l.text}</span>
-            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{l.time}</span>
+            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>
+              {/^\d{4}-\d{2}-\d{2}/.test(l.time) ? new Date(l.time).toLocaleString("de-DE") : l.time}
+            </span>
           </div>
         ))}
       </Panel>
