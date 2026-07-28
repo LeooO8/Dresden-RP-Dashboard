@@ -1020,7 +1020,16 @@ function UsersSection() {
 }
 
 function SecuritySection() {
-  const sessions = [];
+  const { live } = useLive();
+  const [sessions, setSessions] = useState([]);
+  const [overview, setOverview] = useState(null);
+
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/security/sessions").then(setSessions).catch(() => {});
+    apiGet("/api/security/overview").then(setOverview).catch(() => {});
+  }, [live]);
+
   return (
     <>
       <SectionTitle eyebrow="Zugriff" title="Sicherheit" />
@@ -1030,7 +1039,9 @@ function SecuritySection() {
             <LogIn size={16} color={C.cyan} />
             <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Discord Login</span>
           </div>
-          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>Anmeldung über OAuth2 · verbunden mit dem Server</div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
+            Anmeldung über OAuth2 · {overview ? overview.logins_24h : 0} Anmeldungen in den letzten 24h
+          </div>
           <div style={{ marginTop: 10 }}><Badge color={C.green}>Aktiv</Badge></div>
         </Panel>
         <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
@@ -1038,24 +1049,30 @@ function SecuritySection() {
             <KeyRound size={16} color={C.gold} />
             <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Admin-Berechtigungen</span>
           </div>
-          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>3 Rollen mit Verwaltungszugriff konfiguriert</div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
+            {overview ? overview.admin_count : 0} Nutzer mit Admin/Owner-Rolle (unter Benutzerverwaltung einstellbar)
+          </div>
         </Panel>
       </div>
-      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Aktive Sitzungen</div>
+      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Login-Verlauf</div>
+      {sessions.length === 0 ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Logins aufgezeichnet.</div></Panel>
+      ) : (
       <Panel style={{ overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><Th>Benutzer</Th><Th>Gerät</Th><Th>IP-Adresse</Th><Th align="right">Letzte Aktivität</Th></tr></thead>
+          <thead><tr><Th>Benutzer</Th><Th>Gerät</Th><Th>IP-Adresse</Th><Th align="right">Zeitpunkt</Th></tr></thead>
           <tbody>
             {sessions.map((s, i) => (
               <tr key={i}>
                 <Td>{s.user}</Td><Td style={{ color: C.muted }}>{s.device}</Td>
                 <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.muted, fontSize: 12 }}>{s.ip}</Td>
-                <Td align="right" style={{ color: C.muted, fontSize: 12 }}>{s.time}</Td>
+                <Td align="right" style={{ color: C.muted, fontSize: 12 }}>{new Date(s.time).toLocaleString("de-DE")}</Td>
               </tr>
             ))}
           </tbody>
         </table>
       </Panel>
+      )}
     </>
   );
 }
