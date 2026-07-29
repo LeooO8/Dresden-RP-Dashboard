@@ -343,7 +343,7 @@ function formatUptime(seconds) {
 }
 
 function DashboardSection() {
-  const { live } = useLive();
+  const { live, user } = useLive();
   const [overview, setOverview] = useState(null);
 
   useEffect(() => {
@@ -356,6 +356,23 @@ function DashboardSection() {
   return (
     <>
       <SectionTitle eyebrow="Systemübersicht" title="Dashboard" />
+      {live && user && (
+        <Panel style={{
+          padding: "16px 20px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12,
+          background: `linear-gradient(90deg, ${C.gold}14, transparent)`, borderColor: `${C.gold}40`,
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 9, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`,
+            display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800,
+            fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 16, flexShrink: 0,
+          }}>
+            {user.username?.[0]?.toUpperCase() || "?"}
+          </div>
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 18, fontWeight: 700, color: C.text }}>
+            Willkommen, {user.username}!
+          </div>
+        </Panel>
+      )}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
         <StatCard icon={Users} label="Mitglieder gesamt" value={overview ? overview.member_count : "0"} accent={C.cyan} />
         <StatCard icon={ShieldHalf} label="Aktive Dienste" value={overview ? overview.on_duty : "0"} accent={C.green} />
