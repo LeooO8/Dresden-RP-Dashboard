@@ -14,14 +14,24 @@ import {
 --------------------------------------------------------- */
 const API_BASE = "https://web-production-fdbea.up.railway.app";
 
+// Mehrserver-Unterstützung: welcher Discord-Server gerade im Dashboard
+// ausgewählt ist. Wird von allen API-Aufrufen automatisch mitgeschickt.
+const GuildState = { id: (typeof localStorage !== "undefined" && localStorage.getItem("guildId")) || null };
+
+function withGuild(path) {
+  if (!GuildState.id) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}guild_id=${encodeURIComponent(GuildState.id)}`;
+}
+
 async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
+  const res = await fetch(`${API_BASE}${withGuild(path)}`, { credentials: "include" });
   if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
   return res.json();
 }
 
 async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${API_BASE}${withGuild(path)}`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -32,7 +42,9 @@ async function apiPost(path, body) {
 }
 
 async function apiPostQuery(path, params) {
-  const qs = new URLSearchParams(params || {}).toString();
+  const merged = { ...(params || {}) };
+  if (GuildState.id) merged.guild_id = GuildState.id;
+  const qs = new URLSearchParams(merged).toString();
   const res = await fetch(`${API_BASE}${path}${qs ? `?${qs}` : ""}`, {
     method: "POST",
     credentials: "include",
@@ -46,12 +58,18 @@ async function apiPostQuery(path, params) {
 }
 
 async function apiDelete(path) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${API_BASE}${withGuild(path)}`, {
     method: "DELETE",
     credentials: "include",
   });
   if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
   return res.json();
+}
+
+function selectGuild(id) {
+  GuildState.id = id;
+  try { localStorage.setItem("guildId", id); } catch (_) {}
+  window.location.reload();
 }
 
 const LiveContext = createContext({ live: false, user: null });
@@ -239,7 +257,7 @@ function PrimaryBtn({ children, icon: Icon, ...rest }) {
    HUD TICKER (signature element)
 --------------------------------------------------------- */
 function Ticker({ overview }) {
-  const { live, user } = useLive();
+  const { live, user, myGuilds } = useLive();
   const items = [
     { label: "BOT-STATUS", value: overview ? overview.bot_status?.toUpperCase() : "ONLINE", color: C.green },
     { label: "MITGLIEDER", value: overview ? overview.member_count.toLocaleString("de-DE") : "0", color: C.text },
@@ -286,6 +304,18 @@ function Ticker({ overview }) {
             >
               Abmelden
             </button>
+            {myGuilds && myGuilds.length > 1 && (
+              <button
+                onClick={() => { GuildState.id = null; try { localStorage.removeItem("guildId"); } catch (_) {} window.location.reload(); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.muted,
+                  background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, padding: "5px 10px",
+                  cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                Server wechseln
+              </button>
+            )}
           </>
         ) : (
           <a href={`${API_BASE}/auth/login`} style={{
@@ -1157,11 +1187,42 @@ const SECTIONS = {
 /* ---------------------------------------------------------
    APP
 --------------------------------------------------------- */
+function GuildSelector({ guilds }) {
+  return (
+    <>
+      <SectionTitle eyebrow="Mehrserver-Unterstützung" title="Server auswählen" />
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, maxWidth: 560 }}>
+        Der Bot läuft auf mehreren Servern. Wähle, für welchen Server du gerade das Dashboard sehen und verwalten möchtest —
+        jeder Server hat seine eigenen, komplett getrennten Daten.
+      </div>
+      {guilds.length === 0 ? (
+        <Panel style={{ padding: 18 }}>
+          <div style={{ fontSize: 13, color: C.muted }}>
+            Der Bot ist auf keinem gemeinsamen Server mit deinem Discord-Konto zu finden.
+          </div>
+        </Panel>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 14 }}>
+          {guilds.map((g) => (
+            <Panel key={g.id} style={{ padding: 18, cursor: "pointer" }} onClick={() => selectGuild(g.id)}>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
+                {g.name}
+              </div>
+              <PrimaryBtn onClick={() => selectGuild(g.id)}>Auswählen</PrimaryBtn>
+            </Panel>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function DiscordBotDashboard() {
   const [active, setActive] = useState("dashboard");
   const [live, setLive] = useState(false);
   const [user, setUser] = useState(null);
   const [overview, setOverview] = useState(null);
+  const [myGuilds, setMyGuilds] = useState(null); // null = noch nicht geladen
   const Active = SECTIONS[active];
 
   useEffect(() => {
@@ -1174,15 +1235,24 @@ export default function DiscordBotDashboard() {
         setLive(true);
       })
       .catch(() => {
-        // Backend nicht erreichbar -> Dashboard bleibt im Demo-Modus mit Beispieldaten.
+        // Backend nicht erreichbar (oder noch kein Server ausgewählt) -> Demo-Modus.
         setLive(false);
       });
-    apiGet("/auth/me").then((u) => !cancelled && setUser(u)).catch(() => {});
+    apiGet("/auth/me")
+      .then((u) => {
+        if (cancelled) return;
+        setUser(u);
+        apiGet("/api/my-guilds").then((gs) => !cancelled && setMyGuilds(gs)).catch(() => !cancelled && setMyGuilds([]));
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
+  const needsGuildSelection = user && myGuilds && myGuilds.length > 0 &&
+    !myGuilds.some((g) => g.id === GuildState.id);
+
   return (
-    <LiveContext.Provider value={{ live, user }}>
+    <LiveContext.Provider value={{ live, user, myGuilds }}>
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1249,7 +1319,7 @@ export default function DiscordBotDashboard() {
 
         {/* Main */}
         <div className="app-main">
-          <Active />
+          {needsGuildSelection ? <GuildSelector guilds={myGuilds} /> : <Active />}
         </div>
       </div>
     </div>
