@@ -139,6 +139,42 @@ const NAV = [
 /* ---------------------------------------------------------
    PRIMITIVES
 --------------------------------------------------------- */
+function ChannelSelect({ value, onChange, placeholder, style }) {
+  const { live } = useLive();
+  const [channels, setChannels] = useState([]);
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/guild-channels").then(setChannels).catch(() => {});
+  }, [live]);
+  return (
+    <select
+      value={value} onChange={(e) => onChange(e.target.value)}
+      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, ...style }}
+    >
+      <option value="">{placeholder || "Kanal wählen…"}</option>
+      {channels.map((c) => <option key={c.id} value={c.id}># {c.name}</option>)}
+    </select>
+  );
+}
+
+function RoleSelect({ value, onChange, placeholder, style }) {
+  const { live } = useLive();
+  const [roles, setRoles] = useState([]);
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/guild-roles").then(setRoles).catch(() => {});
+  }, [live]);
+  return (
+    <select
+      value={value} onChange={(e) => onChange(e.target.value)}
+      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, ...style }}
+    >
+      <option value="">{placeholder || "Rolle wählen…"}</option>
+      {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+    </select>
+  );
+}
+
 function Panel({ children, style, ...rest }) {
   return (
     <div
@@ -730,15 +766,12 @@ function DienstSection() {
           type="number" value={newTotal} onChange={(e) => setNewTotal(e.target.value)} placeholder="Plätze"
           style={{ width: 90, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
         />
-        <input
-          value={newChannelId} onChange={(e) => setNewChannelId(e.target.value)} placeholder="Kanal-ID für Dienst-Embeds (optional)"
-          style={{ flex: 1, minWidth: 220, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}
+        <ChannelSelect
+          value={newChannelId} onChange={setNewChannelId} placeholder="Kanal für Dienst-Embeds (optional)"
+          style={{ flex: 1, minWidth: 220 }}
         />
         <PrimaryBtn icon={Plus} onClick={createFraction}>Fraktion anlegen</PrimaryBtn>
       </Panel>
-      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 18 }}>
-        Kanal-ID bekommst du in Discord per Rechtsklick auf den Kanal → "ID kopieren" (Entwicklermodus muss aktiv sein).
-      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 14 }}>
         {duty.map((d) => (
           <Panel key={d.id || d.fraction} style={{ padding: 18 }}>
@@ -900,14 +933,14 @@ function GiveawaySection() {
           type="number" value={dauer} onChange={(e) => setDauer(e.target.value)} placeholder="Minuten"
           style={{ width: 100, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
         />
-        <input
-          value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="Kanal-ID"
-          style={{ flex: 1, minWidth: 160, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+        <ChannelSelect
+          value={channelId} onChange={setChannelId} placeholder="Kanal wählen…"
+          style={{ flex: 1, minWidth: 160 }}
         />
         <PrimaryBtn icon={Gift} onClick={create}>Giveaway erstellen</PrimaryBtn>
       </Panel>
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 18 }}>
-        Kanal-ID: Rechtsklick auf den Kanal in Discord → "ID kopieren" (Entwicklermodus muss aktiv sein). Teilnahme läuft über eine 🎉-Reaktion auf die gepostete Nachricht.
+        Teilnahme läuft über eine 🎉-Reaktion auf die gepostete Nachricht.
       </div>
       {list.length === 0 ? (
         <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Giveaways.</div></Panel>
@@ -1164,11 +1197,11 @@ function SecuritySection() {
 }
 
 const SETTINGS_GROUPS = [
-  { title: "Bot-Einstellungen", fields: [["bot_praefix", "Bot-Präfix"], ["standard_sprache", "Standard-Sprache"], ["log_kanal", "Log-Kanal (Kanal-ID)"]] },
+  { title: "Bot-Einstellungen", fields: [["bot_praefix", "Bot-Präfix"], ["standard_sprache", "Standard-Sprache"], ["log_kanal", "Log-Kanal", "channel"]] },
   { title: "Bank-Einstellungen", fields: [["startguthaben", "Startguthaben"], ["max_ueberweisung", "Max. Überweisungsbetrag"], ["zinssatz_taeglich", "Zinssatz (täglich, %)"]] },
   { title: "Shop-Einstellungen", fields: [["shop_standardkategorie", "Standardkategorie"], ["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
-  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle (Rollen-ID)"], ["ankuendigungskanal", "Ankündigungskanal (Kanal-ID)"]] },
+  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"], ["ankuendigungskanal", "Ankündigungskanal", "channel"]] },
   { title: "Design", fields: [["welcome_banner_url", "Willkommens-Banner (Bild-URL)"]] },
 ];
 
@@ -1203,14 +1236,20 @@ function SettingsSection() {
         {SETTINGS_GROUPS.map((g) => (
           <Panel key={g.title} style={{ padding: 18 }}>
             <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 14 }}>{g.title}</div>
-            {g.fields.map(([key, label]) => (
+            {g.fields.map(([key, label, type]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
-                <input
-                  value={values[key] ?? ""} onChange={(e) => setField(key, e.target.value)}
-                  style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
-                  placeholder="—"
-                />
+                {type === "channel" ? (
+                  <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
+                ) : type === "role" ? (
+                  <RoleSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
+                ) : (
+                  <input
+                    value={values[key] ?? ""} onChange={(e) => setField(key, e.target.value)}
+                    style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
+                    placeholder="—"
+                  />
+                )}
               </div>
             ))}
             <PrimaryBtn onClick={() => saveGroup(g)}>{savedGroup === g.title ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
