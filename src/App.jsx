@@ -371,14 +371,22 @@ function DashboardSection() {
           ...bannerStyle, borderColor: `${C.gold}40`,
         }}>
           <div style={{ position: "relative", padding: "22px 24px", display: "flex", alignItems: "center", gap: 14, height: "100%" }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 10, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`,
-              display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800,
-              fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 18, flexShrink: 0,
-              boxShadow: "0 0 0 3px rgba(0,0,0,0.4)",
-            }}>
-              {user.username?.[0]?.toUpperCase() || "?"}
-            </div>
+            {user.avatar ? (
+              <img
+                src={`https://cdn.discordapp.com/avatars/${user.sub}/${user.avatar}.png?size=128`}
+                alt={user.username}
+                style={{ width: 42, height: 42, borderRadius: 10, boxShadow: "0 0 0 3px rgba(0,0,0,0.4)", flexShrink: 0, objectFit: "cover" }}
+              />
+            ) : (
+              <div style={{
+                width: 42, height: 42, borderRadius: 10, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`,
+                display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800,
+                fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 18, flexShrink: 0,
+                boxShadow: "0 0 0 3px rgba(0,0,0,0.4)",
+              }}>
+                {user.username?.[0]?.toUpperCase() || "?"}
+              </div>
+            )}
             <div>
               <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: 0.3, textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
                 Willkommen, {user.username}!
