@@ -1266,6 +1266,7 @@ export default function DiscordBotDashboard() {
   const [user, setUser] = useState(null);
   const [overview, setOverview] = useState(null);
   const [myGuilds, setMyGuilds] = useState(null); // null = noch nicht geladen
+  const [guildInfo, setGuildInfo] = useState(null);
   const Active = SECTIONS[active];
 
   useEffect(() => {
@@ -1281,6 +1282,9 @@ export default function DiscordBotDashboard() {
         // Backend nicht erreichbar (oder noch kein Server ausgewählt) -> Demo-Modus.
         setLive(false);
       });
+    if (GuildState.id) {
+      apiGet("/api/guild-info").then((gi) => !cancelled && setGuildInfo(gi)).catch(() => {});
+    }
     apiGet("/auth/me")
       .then((u) => {
         if (cancelled) return;
@@ -1324,9 +1328,16 @@ export default function DiscordBotDashboard() {
         {/* Sidebar */}
         <div className="app-sidebar" style={{ borderRight: `1px solid ${C.border}`, minHeight: "calc(100vh - 40px)", padding: "20px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px", marginBottom: 26 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 15, flexShrink: 0 }}>
-              ⌁
-            </div>
+            {guildInfo?.icon_url ? (
+              <img
+                src={guildInfo.icon_url} alt={guildInfo.name || "Server"}
+                style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, objectFit: "cover" }}
+              />
+            ) : (
+              <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 15, flexShrink: 0 }}>
+                ⌁
+              </div>
+            )}
             <div>
               <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: 0.3 }}>DIENSTKONTROLLE</div>
               <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>Server Control Panel</div>
