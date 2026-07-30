@@ -12,7 +12,7 @@ import {
    Solange die API nicht erreichbar ist, bleiben alle Bereiche
    mit den Beispieldaten unten voll funktionsfähig ("Demo-Modus").
 --------------------------------------------------------- */
-const API_BASE = "https://web-production-fdbea.up.railway.app";
+const API_BASE = "";
 
 // Mehrserver-Unterstützung: welcher Discord-Server gerade im Dashboard
 // ausgewählt ist. Wird von allen API-Aufrufen automatisch mitgeschickt.
