@@ -120,6 +120,7 @@ const LOG_META = {
   dienst: { label: "Dienst", color: C.green },
   login: { label: "Login", color: "#B79CFF" },
   system: { label: "System", color: C.muted },
+  afk: { label: "AFK", color: "#F2B705" },
 };
 
 const NAV = [
@@ -488,6 +489,8 @@ function BankSection() {
   const [txns, setTxns] = useState(TRANSACTIONS);
   const [toId, setToId] = useState("");
   const [amount, setAmount] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
 
   const refresh = () => {
     apiGet("/api/bank/accounts").then(setAccounts).catch(() => {});
@@ -514,6 +517,22 @@ function BankSection() {
     apiPostQuery("/api/bank/transfer", { empfaenger_id: toId, betrag: amount })
       .then(() => { setToId(""); setAmount(""); refresh(); })
       .catch((err) => alert(err.message || "Überweisung fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const doDeposit = () => {
+    if (!depositAmount) return;
+    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    apiPostQuery("/api/bank/deposit", { betrag: depositAmount })
+      .then(() => { setDepositAmount(""); refresh(); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const doWithdraw = () => {
+    if (!withdrawAmount) return;
+    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    apiPostQuery("/api/bank/withdraw", { betrag: withdrawAmount })
+      .then(() => { setWithdrawAmount(""); refresh(); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
 
   const adjustBalance = (u) => {
@@ -564,15 +583,41 @@ function BankSection() {
         </Panel>
       </div>
 
+      {live && (
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
+          <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Einzahlen (Bargeld → Bank)</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input
+                type="number" placeholder="Betrag" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
+                style={{ flex: 1, minWidth: 0, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+              />
+              <PrimaryBtn onClick={doDeposit}>Einzahlen</PrimaryBtn>
+            </div>
+          </Panel>
+          <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>Auszahlen (Bank → Bargeld)</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input
+                type="number" placeholder="Betrag" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)}
+                style={{ flex: 1, minWidth: 0, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
+              />
+              <PrimaryBtn onClick={doWithdraw}>Auszahlen</PrimaryBtn>
+            </div>
+          </Panel>
+        </div>
+      )}
+
       <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Konten</div>
       <Panel style={{ overflow: "hidden", marginBottom: 20 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><Th>Benutzer</Th><Th>Kontostand</Th><Th>Rolle</Th><Th align="right">Aktion</Th></tr></thead>
+          <thead><tr><Th>Benutzer</Th><Th>Bankguthaben</Th><Th>Bargeld</Th><Th>Rolle</Th><Th align="right">Aktion</Th></tr></thead>
           <tbody>
             {accounts.map((u) => (
               <tr key={u.id}>
                 <Td>{u.name}</Td>
                 <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold }}>{fmtMoney(u.balance)}</Td>
+                <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.cyan }}>{fmtMoney(u.cash || 0)}</Td>
                 <Td><span style={{ color: C.muted }}>{u.role}</span></Td>
                 <Td align="right"><IconBtn icon={Pencil} onClick={() => adjustBalance(u)} /></Td>
               </tr>
@@ -607,6 +652,7 @@ function ShopSection() {
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newRoleId, setNewRoleId] = useState("");
 
   const refresh = () => apiGet("/api/shop/items").then(setItems).catch(() => {});
 
@@ -620,12 +666,12 @@ function ShopSection() {
   const createItem = () => {
     if (!newName.trim() || !newCategory.trim() || !newPrice) return;
     if (!live) {
-      setItems([...items, { id: Date.now(), name: newName, category: newCategory, price: Number(newPrice), sold: 0 }]);
-      setNewName(""); setNewCategory(""); setNewPrice("");
+      setItems([...items, { id: Date.now(), name: newName, category: newCategory, price: Number(newPrice), sold: 0, roleId: newRoleId }]);
+      setNewName(""); setNewCategory(""); setNewPrice(""); setNewRoleId("");
       return;
     }
-    apiPostQuery("/api/shop/items", { name: newName, category: newCategory, price: newPrice })
-      .then(() => { setNewName(""); setNewCategory(""); setNewPrice(""); refresh(); })
+    apiPostQuery("/api/shop/items", { name: newName, category: newCategory, price: newPrice, role_id: newRoleId || "" })
+      .then(() => { setNewName(""); setNewCategory(""); setNewPrice(""); setNewRoleId(""); refresh(); })
       .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
 
@@ -642,7 +688,7 @@ function ShopSection() {
       setItems(items.map((x) => x.id === it.id ? { ...x, name, category, price } : x));
       return;
     }
-    apiPostQuery(`/api/shop/items/${it.id}`, { name, category, price }).then(refresh)
+    apiPostQuery(`/api/shop/items/${it.id}`, { name, category, price, role_id: it.roleId || "" }).then(refresh)
       .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
 
@@ -656,7 +702,7 @@ function ShopSection() {
   return (
     <>
       <SectionTitle eyebrow="Wirtschaft" title="Shop-System" />
-      <Panel style={{ padding: 16, marginBottom: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <Panel style={{ padding: 16, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input
           value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Artikelname"
           style={{ flex: 1.4, minWidth: 160, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
@@ -669,8 +715,12 @@ function ShopSection() {
           type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="Preis"
           style={{ width: 110, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
         />
+        <RoleSelect value={newRoleId} onChange={setNewRoleId} placeholder="Rolle vergeben (optional)" style={{ flex: 1, minWidth: 180 }} />
         <PrimaryBtn icon={Plus} onClick={createItem}>Artikel erstellen</PrimaryBtn>
       </Panel>
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 18 }}>
+        Wenn eine Rolle hinterlegt ist, bekommt der Käufer sie beim Kauf automatisch — der Bot braucht dafür die Berechtigung "Rollen verwalten" und muss über der Rolle stehen.
+      </div>
       {cats.length > 0 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
           {cats.map((c) => <Badge key={c} color={C.gold}>{c}</Badge>)}
@@ -691,7 +741,7 @@ function ShopSection() {
               </div>
               <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>{it.name}</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold, fontSize: 15, fontWeight: 700 }}>{fmtMoney(it.price)}</div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{it.sold}× verkauft</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{it.sold}× verkauft{it.roleId ? " · vergibt Rolle" : ""}</div>
             </Panel>
           ))}
         </div>
@@ -792,7 +842,7 @@ function DienstSection() {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: C.muted, marginBottom: 6 }}>
               <span>{d.onDuty} / {d.total} im Dienst</span>
-              <span><Clock size={11} style={{ display: "inline", marginRight: 3 }} />{d.hoursToday}h heute</span>
+              <span><Clock size={11} style={{ display: "inline", marginRight: 3 }} />{d.hoursToday}h gesamt</span>
             </div>
             {d.channelId && (
               <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1038,8 +1088,9 @@ function StatsSection() {
         <StatCard icon={Activity} label="Aktive Nutzer (7T)" value={stats ? stats.active_users_7d : "0"} accent={C.green} />
         <StatCard icon={Coins} label="Gesamtvermögen" value={fmtMoney(stats ? stats.total_balance : 0)} accent={C.gold} />
         <StatCard icon={ShoppingBag} label="Shop-Verkäufe" value={stats ? stats.shop_sales : "0"} accent={C.cyan} />
-        <StatCard icon={Clock} label="Dienststunden (heute)" value={`${stats ? stats.duty_hours_today : 0}h`} accent={C.green} />
+        <StatCard icon={Clock} label="Dienststunden (gesamt)" value={`${stats ? stats.duty_hours_today : 0}h`} accent={C.green} />
         <StatCard icon={Gift} label="Giveaways gesamt" value={stats ? stats.giveaway_count : "0"} accent={C.gold} />
+        <StatCard icon={Activity} label="Bot-Uptime" value={formatUptime(stats?.uptime_seconds)} accent={C.text} />
       </div>
       <Panel style={{ padding: 20 }}>
         <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 18 }}>
@@ -1106,7 +1157,7 @@ function UsersSection() {
       ) : (
       <Panel style={{ overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><Th>Benutzer</Th><Th>Status</Th><Th>Rolle</Th><Th>Kontostand</Th><Th>Beigetreten</Th><Th align="right">Aktion</Th></tr></thead>
+          <thead><tr><Th>Benutzer</Th><Th>Status</Th><Th>Rolle</Th><Th>Kontostand</Th><Th>Dienst</Th><Th>AFK</Th><Th>Beigetreten</Th><Th align="right">Aktion</Th></tr></thead>
           <tbody>
             {filtered.map((u) => (
               <tr key={u.id}>
@@ -1121,6 +1172,8 @@ function UsersSection() {
                 <Td><span style={{ display: "flex", alignItems: "center", gap: 6 }}><StatusDot status={u.status} /><span style={{ color: C.muted, fontSize: 12, textTransform: "capitalize" }}>{u.status}</span></span></Td>
                 <Td style={{ color: C.muted, fontSize: 12.5 }}>{u.role}</Td>
                 <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold }}>{fmtMoney(u.balance)}</Td>
+                <Td>{u.onDutyFraction ? <Badge color={C.green}>{u.onDutyFraction}</Badge> : <span style={{ color: C.muted, fontSize: 12 }}>—</span>}</Td>
+                <Td>{u.afkReason ? <Badge color={C.gold}>AFK</Badge> : <span style={{ color: C.muted, fontSize: 12 }}>—</span>}</Td>
                 <Td style={{ color: C.muted, fontSize: 12 }}>{new Date(u.joined).toLocaleDateString("de-DE")}</Td>
                 <Td align="right">
                   <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
