@@ -1270,7 +1270,7 @@ function SecuritySection() {
 }
 
 const SETTINGS_GROUPS = [
-  { title: "Bot-Einstellungen", fields: [["bot_praefix", "Bot-Präfix"], ["standard_sprache", "Standard-Sprache"], ["log_kanal", "Log-Kanal", "channel"]] },
+  { title: "Bot-Einstellungen", fields: [["standard_sprache", "Standard-Sprache"], ["log_kanal", "Log-Kanal", "channel"]] },
   { title: "Bank-Einstellungen", fields: [["startguthaben", "Startguthaben"], ["max_ueberweisung", "Max. Überweisungsbetrag"], ["zinssatz_taeglich", "Zinssatz (täglich, %)"]] },
   { title: "Shop-Einstellungen", fields: [["shop_standardkategorie", "Standardkategorie"], ["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
