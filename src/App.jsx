@@ -1196,11 +1196,19 @@ function SecuritySection() {
   const [sessions, setSessions] = useState([]);
   const [overview, setOverview] = useState(null);
 
+  const refresh = () => apiGet("/api/security/sessions").then(setSessions).catch(() => {});
+
   useEffect(() => {
     if (!live) return;
-    apiGet("/api/security/sessions").then(setSessions).catch(() => {});
+    refresh();
     apiGet("/api/security/overview").then(setOverview).catch(() => {});
   }, [live]);
+
+  const revokeSession = (s) => {
+    if (!confirm("Diese Sitzung wirklich beenden? Das Gerät muss sich danach neu anmelden.")) return;
+    apiPostQuery(`/api/security/sessions/${s.id}/revoke`, {}).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen"));
+  };
 
   return (
     <>
@@ -1232,13 +1240,25 @@ function SecuritySection() {
       ) : (
       <Panel style={{ overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><Th>Benutzer</Th><Th>Gerät</Th><Th>IP-Adresse</Th><Th align="right">Zeitpunkt</Th></tr></thead>
+          <thead><tr><Th>Benutzer</Th><Th>Gerät</Th><Th>IP-Adresse</Th><Th>Zeitpunkt</Th><Th align="right">Aktion</Th></tr></thead>
           <tbody>
-            {sessions.map((s, i) => (
-              <tr key={i}>
+            {sessions.map((s) => (
+              <tr key={s.id}>
                 <Td>{s.user}</Td><Td style={{ color: C.muted }}>{s.device}</Td>
                 <Td style={{ fontFamily: "'JetBrains Mono', monospace", color: C.muted, fontSize: 12 }}>{s.ip}</Td>
-                <Td align="right" style={{ color: C.muted, fontSize: 12 }}>{new Date(s.time).toLocaleString("de-DE")}</Td>
+                <Td style={{ color: C.muted, fontSize: 12 }}>{new Date(s.time).toLocaleString("de-DE")}</Td>
+                <Td align="right">
+                  {s.isMine ? (
+                    <button
+                      onClick={() => revokeSession(s)}
+                      style={{ background: "transparent", border: `1px solid ${C.red}60`, color: C.red, borderRadius: 6, padding: "5px 10px", fontSize: 11.5, cursor: "pointer" }}
+                    >
+                      Beenden
+                    </button>
+                  ) : (
+                    <span style={{ color: C.muted, fontSize: 11 }}>—</span>
+                  )}
+                </Td>
               </tr>
             ))}
           </tbody>
