@@ -182,6 +182,24 @@ function RoleSelect({ value, onChange, placeholder, style }) {
   );
 }
 
+function CategorySelect({ value, onChange, placeholder, style }) {
+  const { live } = useLive();
+  const [categories, setCategories] = useState([]);
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/guild-categories").then(setCategories).catch(() => {});
+  }, [live]);
+  return (
+    <select
+      value={value} onChange={(e) => onChange(e.target.value)}
+      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, ...style }}
+    >
+      <option value="">{placeholder || "Kategorie wählen…"}</option>
+      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+    </select>
+  );
+}
+
 function Panel({ children, style, ...rest }) {
   return (
     <div
@@ -1324,6 +1342,7 @@ const SETTINGS_GROUPS = [
   { title: "Bank-Einstellungen", fields: [["startguthaben", "Startguthaben"], ["max_ueberweisung", "Max. Überweisungsbetrag"], ["zinssatz_taeglich", "Zinssatz (täglich, %)"]] },
   { title: "Shop-Einstellungen", fields: [["shop_standardkategorie", "Standardkategorie"], ["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
+  { title: "Ticket-Einstellungen", fields: [["ticket_kategorie", "Kategorie für Ticket-Kanäle", "category"], ["ticket_support_rolle", "Support-Rolle (sieht alle Tickets)", "role"]] },
   { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"], ["ankuendigungskanal", "Ankündigungskanal", "channel"]] },
   { title: "Design", fields: [["welcome_banner_url", "Willkommens-Banner (Bild-URL)"]] },
 ];
@@ -1364,6 +1383,8 @@ function SettingsSection() {
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
                 {type === "channel" ? (
                   <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
+                ) : type === "category" ? (
+                  <CategorySelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
                 ) : type === "role" ? (
                   <RoleSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
                 ) : (
@@ -1460,11 +1481,83 @@ function TodoSection() {
 }
 
 function TicketsSection() {
+  const { live } = useLive();
+  const [tickets, setTickets] = useState([]);
+  const [filter, setFilter] = useState("offen");
+
+  const refresh = () => apiGet("/api/tickets").then(setTickets).catch(() => {});
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+  }, [live]);
+
+  const closeTicket = (t) => {
+    if (!live) { setTickets(tickets.map((x) => x.id === t.id ? { ...x, status: "geschlossen" } : x)); return; }
+    if (!confirm(`Ticket #${t.id} von ${t.username} wirklich schließen? Der Kanal wird gelöscht.`)) return;
+    apiPost(`/api/tickets/${t.id}/close`, {}).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const filtered = tickets.filter((t) => filter === "alle" ? true : t.status === filter);
+
   return (
-    <ComingSoonPanel
-      eyebrow="Support" title="Tickets" icon={Ticket}
-      description="Das Ticket-System existiert im Backend noch nicht. Sobald wir das Schritt für Schritt aufbauen (Ticket erstellen, Kanäle, Schließen/Archivieren), erscheint es hier."
-    />
+    <>
+      <SectionTitle eyebrow="Support" title="Tickets" />
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
+        Nutzer öffnen Tickets über <code style={{ color: C.gold }}>/ticket</code> im Discord-Server. Vergiss nicht, unter Einstellungen eine Kategorie und optional eine Support-Rolle festzulegen.
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {["offen", "geschlossen", "alle"].map((f) => (
+          <button
+            key={f} onClick={() => setFilter(f)}
+            style={{
+              padding: "6px 12px", borderRadius: 6, fontSize: 12.5, cursor: "pointer",
+              border: `1px solid ${filter === f ? C.gold : C.border}`,
+              background: filter === f ? `${C.gold}14` : "transparent",
+              color: filter === f ? C.gold : C.muted,
+            }}
+          >
+            {f === "offen" ? "Offen" : f === "geschlossen" ? "Geschlossen" : "Alle"}
+          </button>
+        ))}
+      </div>
+      <Panel style={{ padding: 0, overflow: "hidden" }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Keine Tickets in dieser Ansicht.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <Th>#</Th><Th>Nutzer</Th><Th>Betreff</Th><Th>Status</Th><Th>Erstellt</Th><Th align="right">Aktion</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((t) => (
+                <tr key={t.id}>
+                  <Td>{t.id}</Td>
+                  <Td>{t.username}</Td>
+                  <Td>{t.subject || "—"}</Td>
+                  <Td>
+                    <Badge color={t.status === "offen" ? C.green : C.muted}>
+                      <StatusDot status={t.status === "offen" ? "online" : "offline"} /> {t.status === "offen" ? "Offen" : "Geschlossen"}
+                    </Badge>
+                  </Td>
+                  <Td>{t.created_at ? new Date(t.created_at).toLocaleString("de-DE") : "—"}</Td>
+                  <Td align="right">
+                    {t.status === "offen" ? (
+                      <PrimaryBtn style={{ padding: "5px 10px", fontSize: 11.5 }} onClick={() => closeTicket(t)}>Schließen</PrimaryBtn>
+                    ) : (
+                      <span style={{ fontSize: 11.5, color: C.muted }}>von {t.closed_by || "—"}</span>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </>
   );
 }
 
