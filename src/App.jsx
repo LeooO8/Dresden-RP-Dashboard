@@ -1462,12 +1462,109 @@ function ModuleSection() {
   );
 }
 
+const TEAM_ROLES = ["Support", "Moderator", "Admin", "Owner"];
+
 function TeamSection() {
+  const { live } = useLive();
+  const [team, setTeam] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+
+  const refresh = () => {
+    apiGet("/api/team").then(setTeam).catch(() => {});
+    apiGet("/api/users").then(setAllUsers).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+  }, [live]);
+
+  const changeRole = (member, role) => {
+    if (!live) { setTeam(team.map((x) => x.id === member.id ? { ...x, role } : x)); return; }
+    apiPostQuery(`/api/users/${member.id}/role`, { role }).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const removeFromTeam = (member) => {
+    if (!confirm(`${member.name} wirklich aus dem Team entfernen?`)) return;
+    changeRole(member, "Mitglied");
+  };
+
+  const addToTeam = (u, role) => {
+    if (!live) { setTeam([...team, { id: u.id, name: u.name, role, status: u.status, joined: u.joined }]); setShowAdd(false); return; }
+    apiPostQuery(`/api/users/${u.id}/role`, { role }).then(() => { refresh(); setShowAdd(false); setSearch(""); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const teamIds = new Set(team.map((t) => t.id));
+  const searchResults = search.trim()
+    ? allUsers.filter((u) => !teamIds.has(u.id) && u.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8)
+    : [];
+
   return (
-    <ComingSoonPanel
-      eyebrow="Verwaltung" title="Team" icon={Users2}
-      description="Hier soll später dein Server-Team verwaltet werden (z.B. wer welche Berechtigungen im Dashboard hat). Sag Bescheid, wenn wir dieses Modul als Nächstes bauen sollen — dafür brauchen wir erst noch die passende Backend-Logik."
-    />
+    <>
+      <SectionTitle
+        eyebrow="Verwaltung" title="Team"
+        action={<PrimaryBtn icon={Plus} onClick={() => setShowAdd((v) => !v)}>Team-Mitglied hinzufügen</PrimaryBtn>}
+      />
+      {showAdd && (
+        <Panel style={{ padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>Nutzer suchen und Team-Rolle vergeben</div>
+          <input
+            value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name eingeben…"
+            style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, marginBottom: 10 }}
+          />
+          {searchResults.map((u) => (
+            <div key={u.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 4px", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 13, color: C.text }}>{u.name}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {TEAM_ROLES.map((r) => (
+                  <button
+                    key={r} onClick={() => addToTeam(u, r)}
+                    style={{ fontSize: 11, padding: "4px 9px", borderRadius: 5, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer" }}
+                  >
+                    als {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {search.trim() && searchResults.length === 0 && (
+            <div style={{ fontSize: 12.5, color: C.muted, padding: "6px 4px" }}>Keine passenden Mitglieder gefunden.</div>
+          )}
+        </Panel>
+      )}
+      <Panel style={{ padding: 0, overflow: "hidden" }}>
+        {team.length === 0 ? (
+          <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Noch keine Team-Mitglieder. Admin/Owner werden automatisch über die Discord-Rolle synchronisiert, weitere Rollen kannst du hier manuell vergeben.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr><Th>Name</Th><Th>Status</Th><Th>Rolle</Th><Th align="right">Aktion</Th></tr>
+            </thead>
+            <tbody>
+              {team.map((m) => (
+                <tr key={m.id}>
+                  <Td>{m.name}</Td>
+                  <Td><Badge color={m.status === "online" ? C.green : m.status === "idle" ? C.gold : C.muted}><StatusDot status={m.status} /> {m.status}</Badge></Td>
+                  <Td>
+                    <select
+                      value={m.role} onChange={(e) => changeRole(m, e.target.value)}
+                      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", color: C.text, fontSize: 12.5 }}
+                    >
+                      {TEAM_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </Td>
+                  <Td align="right"><IconBtn icon={Trash2} danger onClick={() => removeFromTeam(m)} /></Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </>
   );
 }
 
