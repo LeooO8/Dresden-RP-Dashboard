@@ -1732,7 +1732,6 @@ function BotSection() {
   const [overview, setOverview] = useState(null);
   const [maintenance, setMaintenance] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [restarting, setRestarting] = useState(false);
 
   const refresh = () => {
     apiGet("/api/overview").then(setOverview).catch(() => {});
@@ -1761,16 +1760,6 @@ function BotSection() {
       .finally(() => setSyncing(false));
   };
 
-  const doRestart = () => {
-    if (!live) { alert("Nur im Live-Modus möglich."); return; }
-    if (!confirm("Bot wirklich neustarten? Er ist danach ein paar Sekunden offline — auf ALLEN Servern.")) return;
-    setRestarting(true);
-    apiPost("/api/bot/restart", {})
-      .then((r) => alert(r.message || "Neustart ausgelöst."))
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"))
-      .finally(() => setRestarting(false));
-  };
-
   return (
     <>
       <SectionTitle eyebrow="Systemstatus" title="Bot" />
@@ -1790,22 +1779,6 @@ function BotSection() {
             Registriert alle Slash-Commands neu bei Discord. Nötig, wenn neue Befehle nicht auftauchen.
           </div>
           <PrimaryBtn icon={RefreshCw} onClick={doSync} disabled={syncing}>{syncing ? "Synchronisiere…" : "Jetzt synchronisieren"}</PrimaryBtn>
-        </Panel>
-
-        <Panel style={{ padding: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <Power size={16} color={C.red} />
-            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Bot neustarten</span>
-          </div>
-          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-            Startet den gesamten Bot-Prozess neu (betrifft alle Server). Dauert ca. 10–30 Sekunden.
-          </div>
-          <button
-            onClick={doRestart} disabled={restarting}
-            style={{ display: "flex", alignItems: "center", gap: 7, background: "transparent", color: C.red, border: `1px solid ${C.red}`, borderRadius: 7, padding: "9px 15px", fontWeight: 700, fontSize: 13, fontFamily: "'Rajdhani', sans-serif", cursor: "pointer" }}
-          >
-            <Power size={15} /> {restarting ? "Wird neugestartet…" : "Neustart auslösen"}
-          </button>
         </Panel>
 
         <Panel style={{ padding: 18 }}>
