@@ -4,7 +4,7 @@ import {
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
-  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid
+  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -136,7 +136,7 @@ const NAV = [
   { key: "logs", label: "Audit Logs", icon: ScrollText },
   { key: "tickets", label: "Tickets", icon: Ticket },
   { key: "stats", label: "Statistiken", icon: BarChart3 },
-  { key: "users", label: "Benutzerverwaltung", icon: Users },
+  { key: "users", label: "Benutzer", icon: Users },
   { key: "security", label: "Sicherheit", icon: Lock },
   { key: "bot", label: "Bot", icon: BotIcon },
   { key: "module", label: "Module", icon: LayoutGrid },
@@ -1192,27 +1192,9 @@ function UsersSection() {
 
   const filtered = userList.filter((u) => u.name.toLowerCase().includes(q.toLowerCase()));
 
-  const addBalance = (u) => {
-    const input = prompt(`Guthaben zu ${u.name} hinzufügen — Betrag eingeben:`);
-    if (input === null || input.trim() === "") return;
-    const delta = Number(input);
-    if (Number.isNaN(delta)) return alert("Bitte eine Zahl eingeben.");
-    if (!live) { setUserList(userList.map((x) => x.id === u.id ? { ...x, balance: x.balance + delta } : x)); return; }
-    apiPostQuery(`/api/users/${u.id}/balance`, { delta }).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
-  };
-
-  const editRole = (u) => {
-    const role = prompt(`Rolle für ${u.name} (z.B. Mitglied, Moderator, Admin, Owner):`, u.role);
-    if (role === null || !role.trim()) return;
-    if (!live) { setUserList(userList.map((x) => x.id === u.id ? { ...x, role } : x)); return; }
-    apiPostQuery(`/api/users/${u.id}/role`, { role }).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
-  };
-
   return (
     <>
-      <SectionTitle eyebrow="Verwaltung" title="Benutzerverwaltung" />
+      <SectionTitle eyebrow="Übersicht" title="Benutzer" />
       <div style={{ position: "relative", marginBottom: 16, maxWidth: 320 }}>
         <Search size={15} style={{ position: "absolute", left: 11, top: 10, color: C.muted }} />
         <input
@@ -1225,7 +1207,7 @@ function UsersSection() {
       ) : (
       <Panel style={{ overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><Th>Benutzer</Th><Th>Status</Th><Th>Rolle</Th><Th>Kontostand</Th><Th>Dienst</Th><Th>AFK</Th><Th>Beigetreten</Th><Th align="right">Aktion</Th></tr></thead>
+          <thead><tr><Th>Benutzer</Th><Th>Status</Th><Th>Rolle</Th><Th>Kontostand</Th><Th>Dienst</Th><Th>AFK</Th><Th>Beigetreten</Th></tr></thead>
           <tbody>
             {filtered.map((u) => (
               <tr key={u.id}>
@@ -1243,12 +1225,6 @@ function UsersSection() {
                 <Td>{u.onDutyFraction ? <Badge color={C.green}>{u.onDutyFraction}</Badge> : <span style={{ color: C.muted, fontSize: 12 }}>—</span>}</Td>
                 <Td>{u.afkReason ? <Badge color={C.gold}>AFK</Badge> : <span style={{ color: C.muted, fontSize: 12 }}>—</span>}</Td>
                 <Td style={{ color: C.muted, fontSize: 12 }}>{new Date(u.joined).toLocaleDateString("de-DE")}</Td>
-                <Td align="right">
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <IconBtn icon={Plus} onClick={() => addBalance(u)} />
-                    <IconBtn icon={Pencil} onClick={() => editRole(u)} />
-                  </div>
-                </Td>
               </tr>
             ))}
           </tbody>
@@ -1754,10 +1730,46 @@ function TicketsSection() {
 function BotSection() {
   const { live } = useLive();
   const [overview, setOverview] = useState(null);
+  const [maintenance, setMaintenance] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+
+  const refresh = () => {
+    apiGet("/api/overview").then(setOverview).catch(() => {});
+    apiGet("/api/settings").then((s) => setMaintenance(["ja", "yes", "true", "1", "an"].includes((s.wartungsmodus || "").toLowerCase()))).catch(() => {});
+  };
+
   useEffect(() => {
     if (!live) return;
-    apiGet("/api/overview").then(setOverview).catch(() => {});
+    refresh();
+    const t = setInterval(refresh, 15000);
+    return () => clearInterval(t);
   }, [live]);
+
+  const toggleMaintenance = (val) => {
+    if (!live) { setMaintenance(val); return; }
+    apiPost("/api/settings", { wartungsmodus: val ? "ja" : "nein" }).then(() => setMaintenance(val))
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const doSync = () => {
+    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    setSyncing(true);
+    apiPost("/api/bot/sync", {})
+      .then((r) => alert(`✅ ${r.synced_count} Befehle synchronisiert.`))
+      .catch((err) => alert(err.message || "Sync fehlgeschlagen — bist du mit Discord angemeldet?"))
+      .finally(() => setSyncing(false));
+  };
+
+  const doRestart = () => {
+    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    if (!confirm("Bot wirklich neustarten? Er ist danach ein paar Sekunden offline — auf ALLEN Servern.")) return;
+    setRestarting(true);
+    apiPost("/api/bot/restart", {})
+      .then((r) => alert(r.message || "Neustart ausgelöst."))
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"))
+      .finally(() => setRestarting(false));
+  };
 
   return (
     <>
@@ -1767,11 +1779,48 @@ function BotSection() {
         <StatCard icon={Clock} label="Uptime" value={formatUptime(overview?.uptime_seconds)} accent={C.text} />
         <StatCard icon={Users} label="Mitglieder" value={overview ? overview.member_count : "0"} accent={C.cyan} />
       </div>
-      <Panel style={{ padding: 18 }}>
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
-          Weitere Bot-Steuerung (z.B. Neustart, Command-Sync, Wartungsmodus) ist noch nicht angebunden — sag Bescheid, wenn wir das als Nächstes bauen sollen.
-        </div>
-      </Panel>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 14 }}>
+        <Panel style={{ padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <RefreshCw size={16} color={C.cyan} />
+            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Befehle synchronisieren</span>
+          </div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+            Registriert alle Slash-Commands neu bei Discord. Nötig, wenn neue Befehle nicht auftauchen.
+          </div>
+          <PrimaryBtn icon={RefreshCw} onClick={doSync} disabled={syncing}>{syncing ? "Synchronisiere…" : "Jetzt synchronisieren"}</PrimaryBtn>
+        </Panel>
+
+        <Panel style={{ padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <Power size={16} color={C.red} />
+            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Bot neustarten</span>
+          </div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+            Startet den gesamten Bot-Prozess neu (betrifft alle Server). Dauert ca. 10–30 Sekunden.
+          </div>
+          <button
+            onClick={doRestart} disabled={restarting}
+            style={{ display: "flex", alignItems: "center", gap: 7, background: "transparent", color: C.red, border: `1px solid ${C.red}`, borderRadius: 7, padding: "9px 15px", fontWeight: 700, fontSize: 13, fontFamily: "'Rajdhani', sans-serif", cursor: "pointer" }}
+          >
+            <Power size={15} /> {restarting ? "Wird neugestartet…" : "Neustart auslösen"}
+          </button>
+        </Panel>
+
+        <Panel style={{ padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <WifiOff size={16} color={C.gold} />
+              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Wartungsmodus</span>
+            </div>
+            <Toggle checked={maintenance} onChange={toggleMaintenance} />
+          </div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+            Blockt alle Befehle für normale Mitglieder (Administratoren können den Bot weiter nutzen).
+          </div>
+        </Panel>
+      </div>
     </>
   );
 }
