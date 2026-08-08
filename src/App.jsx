@@ -1348,7 +1348,7 @@ function SettingsSection() {
     <>
       <SectionTitle eyebrow="Konfiguration" title="Einstellungen" />
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
-        Aktuell nutzt der Bot direkt nur das <strong>Startguthaben</strong>. Die übrigen Felder werden schon gespeichert und stehen bereit, sobald die jeweilige Funktion eingebaut ist.
+        Änderungen gelten sofort, nachdem du auf "Speichern" geklickt hast — pro Gruppe einzeln.
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 14 }}>
         {SETTINGS_GROUPS.map((g) => (
