@@ -4,7 +4,7 @@ import {
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
-  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw
+  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -1319,8 +1319,14 @@ const SETTINGS_GROUPS = [
   { title: "Shop-Einstellungen", fields: [["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
   { title: "Ticket-Einstellungen", fields: [["ticket_kategorie", "Kategorie für Ticket-Kanäle", "category"], ["ticket_support_rolle", "Support-Rolle (sieht alle Tickets)", "role"]] },
-  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"]] },
-  { title: "Design", fields: [["welcome_banner_url", "Dashboard-Banner (Bild-URL)"]] },
+  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"], ["ankuendigungskanal", "Ankündigungskanal", "channel"]] },
+  {
+    title: "Willkommen", fields: [
+      ["willkommen_kanal", "Willkommens-Kanal (leer = Standardkanal)", "channel"],
+      ["welcome_banner_url", "Willkommens-Banner (Bild-URL)"],
+      ["willkommen_text", "Willkommenstext ({user}, {server}, {balance}, {mitgliederzahl})"],
+    ]
+  },
 ];
 
 function SettingsSection() {
@@ -1732,6 +1738,9 @@ function BotSection() {
   const [overview, setOverview] = useState(null);
   const [maintenance, setMaintenance] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [annTitel, setAnnTitel] = useState("");
+  const [annText, setAnnText] = useState("");
+  const [sending, setSending] = useState(false);
 
   const refresh = () => {
     apiGet("/api/overview").then(setOverview).catch(() => {});
@@ -1760,6 +1769,16 @@ function BotSection() {
       .finally(() => setSyncing(false));
   };
 
+  const sendAnnouncement = () => {
+    if (!annTitel.trim() || !annText.trim()) return;
+    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    setSending(true);
+    apiPostQuery("/api/announce", { titel: annTitel, nachricht: annText })
+      .then((r) => { alert(`✅ Gesendet in #${r.channel}`); setAnnTitel(""); setAnnText(""); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — ist ein Ankündigungskanal in den Einstellungen hinterlegt?"))
+      .finally(() => setSending(false));
+  };
+
   return (
     <>
       <SectionTitle eyebrow="Systemstatus" title="Bot" />
@@ -1769,7 +1788,7 @@ function BotSection() {
         <StatCard icon={Users} label="Mitglieder" value={overview ? overview.member_count : "0"} accent={C.cyan} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 14, marginBottom: 14 }}>
         <Panel style={{ padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <RefreshCw size={16} color={C.cyan} />
@@ -1794,6 +1813,25 @@ function BotSection() {
           </div>
         </Panel>
       </div>
+
+      <Panel style={{ padding: 18, maxWidth: 520 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <Megaphone size={16} color={C.gold} />
+          <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Ankündigung senden</span>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+          Postet direkt in den unter Einstellungen festgelegten Ankündigungskanal. Geht auch per <code style={{ color: C.gold }}>/ankuendigen</code> in Discord.
+        </div>
+        <input
+          value={annTitel} onChange={(e) => setAnnTitel(e.target.value)} placeholder="Titel…"
+          style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, marginBottom: 8 }}
+        />
+        <textarea
+          value={annText} onChange={(e) => setAnnText(e.target.value)} placeholder="Text der Ankündigung…" rows={3}
+          style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, marginBottom: 10, resize: "vertical", fontFamily: "inherit" }}
+        />
+        <PrimaryBtn icon={Megaphone} onClick={sendAnnouncement} disabled={sending}>{sending ? "Sende…" : "Ankündigung senden"}</PrimaryBtn>
+      </Panel>
     </>
   );
 }
