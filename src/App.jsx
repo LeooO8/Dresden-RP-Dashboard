@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Landmark, ShoppingBag, ShieldHalf, Gift, ScrollText,
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
-  KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon
+  KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
+  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -129,11 +130,16 @@ const NAV = [
   { key: "shop", label: "Shop-System", icon: ShoppingBag },
   { key: "dienst", label: "Dienstsystem", icon: ShieldHalf },
   { key: "afk", label: "AFK-System", icon: Moon },
+  { key: "team", label: "Team", icon: Users2 },
   { key: "giveaway", label: "Giveaways", icon: Gift },
+  { key: "todo", label: "To-Do-Liste", icon: ListChecks },
   { key: "logs", label: "Audit Logs", icon: ScrollText },
+  { key: "tickets", label: "Tickets", icon: Ticket },
   { key: "stats", label: "Statistiken", icon: BarChart3 },
   { key: "users", label: "Benutzerverwaltung", icon: Users },
   { key: "security", label: "Sicherheit", icon: Lock },
+  { key: "bot", label: "Bot", icon: BotIcon },
+  { key: "module", label: "Module", icon: LayoutGrid },
   { key: "settings", label: "Einstellungen", icon: Settings },
 ];
 
@@ -288,6 +294,50 @@ function PrimaryBtn({ children, icon: Icon, ...rest }) {
       }}>
       {Icon && <Icon size={15} />} {children}
     </button>
+  );
+}
+
+function Toggle({ checked, onChange, label }) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      style={{
+        display: "flex", alignItems: "center", gap: 9, background: "transparent",
+        border: "none", cursor: "pointer", padding: 0,
+      }}
+    >
+      <span style={{
+        width: 38, height: 21, borderRadius: 99, position: "relative", flexShrink: 0,
+        background: checked ? C.green : C.border, transition: "background 0.15s",
+      }}>
+        <span style={{
+          position: "absolute", top: 2, left: checked ? 19 : 2, width: 17, height: 17,
+          borderRadius: 99, background: "#0A0E13", transition: "left 0.15s",
+        }} />
+      </span>
+      {label && <span style={{ fontSize: 13, color: C.text }}>{label}</span>}
+    </button>
+  );
+}
+
+function ComingSoonPanel({ eyebrow, title, description, icon: Icon }) {
+  return (
+    <>
+      <SectionTitle eyebrow={eyebrow} title={title} />
+      <Panel style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, maxWidth: 560 }}>
+        {Icon && (
+          <div style={{ width: 40, height: 40, borderRadius: 9, background: `${C.gold}1A`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+            <Icon size={19} color={C.gold} />
+          </div>
+        )}
+        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text }}>
+          Dieser Bereich ist noch nicht angebunden
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+          {description}
+        </div>
+      </Panel>
+    </>
   );
 }
 
@@ -1333,10 +1383,121 @@ function SettingsSection() {
   );
 }
 
+function ModuleSection() {
+  const { live } = useLive();
+  const [modules, setModules] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  const refresh = () => {
+    apiGet("/api/modules").then((m) => { setModules(m); setLoading(false); }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!live) { setLoading(false); return; }
+    refresh();
+  }, [live]);
+
+  const toggleModule = (key, current) => {
+    if (!live) {
+      setModules((m) => ({ ...m, [key]: { ...m[key], enabled: !current } }));
+      return;
+    }
+    // Optimistisch umschalten, bei Fehler zurücksetzen
+    setModules((m) => ({ ...m, [key]: { ...m[key], enabled: !current } }));
+    apiPost(`/api/modules/${key}`, { enabled: !current }).catch((err) => {
+      setModules((m) => ({ ...m, [key]: { ...m[key], enabled: current } }));
+      alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?");
+    });
+  };
+
+  const entries = Object.entries(modules);
+
+  return (
+    <>
+      <SectionTitle eyebrow="Feature-Verwaltung" title="Module" />
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
+        Schalte einzelne Systeme pro Server an oder aus. Deaktivierte Module lehnen die zugehörigen Befehle mit einer klaren Meldung ab.
+      </div>
+      {loading ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Lädt…</div></Panel>
+      ) : entries.length === 0 ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Keine Module gefunden — bist du mit Discord angemeldet und ein Server ausgewählt?</div></Panel>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 14 }}>
+          {entries.map(([key, mod]) => (
+            <Panel key={key} style={{ padding: 18, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: C.text }}>{mod.name}</div>
+                <Badge color={mod.enabled ? C.green : C.red} bg={undefined}>
+                  <StatusDot status={mod.enabled ? "online" : "offline"} /> {mod.enabled ? "Aktiv" : "Deaktiviert"}
+                </Badge>
+              </div>
+              <Toggle checked={mod.enabled} onChange={() => toggleModule(key, mod.enabled)} />
+            </Panel>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function TeamSection() {
+  return (
+    <ComingSoonPanel
+      eyebrow="Verwaltung" title="Team" icon={Users2}
+      description="Hier soll später dein Server-Team verwaltet werden (z.B. wer welche Berechtigungen im Dashboard hat). Sag Bescheid, wenn wir dieses Modul als Nächstes bauen sollen — dafür brauchen wir erst noch die passende Backend-Logik."
+    />
+  );
+}
+
+function TodoSection() {
+  return (
+    <ComingSoonPanel
+      eyebrow="Organisation" title="To-Do-Liste" icon={ListChecks}
+      description="Eine Aufgabenliste fürs Team ist noch nicht angebunden. Wenn du willst, bauen wir als Nächstes das Backend dafür (Aufgaben anlegen, erledigen, zuweisen)."
+    />
+  );
+}
+
+function TicketsSection() {
+  return (
+    <ComingSoonPanel
+      eyebrow="Support" title="Tickets" icon={Ticket}
+      description="Das Ticket-System existiert im Backend noch nicht. Sobald wir das Schritt für Schritt aufbauen (Ticket erstellen, Kanäle, Schließen/Archivieren), erscheint es hier."
+    />
+  );
+}
+
+function BotSection() {
+  const { live } = useLive();
+  const [overview, setOverview] = useState(null);
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/overview").then(setOverview).catch(() => {});
+  }, [live]);
+
+  return (
+    <>
+      <SectionTitle eyebrow="Systemstatus" title="Bot" />
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+        <StatCard icon={Activity} label="Status" value={overview?.bot_status === "online" ? "Online" : "Offline"} accent={overview?.bot_status === "online" ? C.green : C.red} />
+        <StatCard icon={Clock} label="Uptime" value={formatUptime(overview?.uptime_seconds)} accent={C.text} />
+        <StatCard icon={Users} label="Mitglieder" value={overview ? overview.member_count : "0"} accent={C.cyan} />
+      </div>
+      <Panel style={{ padding: 18 }}>
+        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+          Weitere Bot-Steuerung (z.B. Neustart, Command-Sync, Wartungsmodus) ist noch nicht angebunden — sag Bescheid, wenn wir das als Nächstes bauen sollen.
+        </div>
+      </Panel>
+    </>
+  );
+}
+
 const SECTIONS = {
   dashboard: DashboardSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
-  afk: AfkSection, giveaway: GiveawaySection, logs: LogsSection, stats: StatsSection, users: UsersSection,
-  security: SecuritySection, settings: SettingsSection,
+  afk: AfkSection, team: TeamSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
+  tickets: TicketsSection, stats: StatsSection, users: UsersSection, security: SecuritySection,
+  bot: BotSection, module: ModuleSection, settings: SettingsSection,
 };
 
 /* ---------------------------------------------------------
