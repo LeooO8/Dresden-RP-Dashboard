@@ -1314,13 +1314,13 @@ function SecuritySection() {
 }
 
 const SETTINGS_GROUPS = [
-  { title: "Bot-Einstellungen", fields: [["standard_sprache", "Standard-Sprache"], ["log_kanal", "Log-Kanal", "channel"]] },
+  { title: "Bot-Einstellungen", fields: [["log_kanal", "Log-Kanal", "channel"]] },
   { title: "Bank-Einstellungen", fields: [["startguthaben", "Startguthaben"], ["max_ueberweisung", "Max. Überweisungsbetrag"], ["zinssatz_taeglich", "Zinssatz (täglich, %)"]] },
-  { title: "Shop-Einstellungen", fields: [["shop_standardkategorie", "Standardkategorie"], ["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
+  { title: "Shop-Einstellungen", fields: [["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
   { title: "Ticket-Einstellungen", fields: [["ticket_kategorie", "Kategorie für Ticket-Kanäle", "category"], ["ticket_support_rolle", "Support-Rolle (sieht alle Tickets)", "role"]] },
-  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"], ["ankuendigungskanal", "Ankündigungskanal", "channel"]] },
-  { title: "Design", fields: [["welcome_banner_url", "Willkommens-Banner (Bild-URL)"]] },
+  { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"]] },
+  { title: "Design", fields: [["welcome_banner_url", "Dashboard-Banner (Bild-URL)"]] },
 ];
 
 function SettingsSection() {
