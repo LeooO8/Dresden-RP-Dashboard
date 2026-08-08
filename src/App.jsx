@@ -1569,11 +1569,104 @@ function TeamSection() {
 }
 
 function TodoSection() {
+  const { live } = useLive();
+  const [todos, setTodos] = useState([]);
+  const [title, setTitle] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [filter, setFilter] = useState("offen");
+
+  const refresh = () => apiGet("/api/todos").then(setTodos).catch(() => {});
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+  }, [live]);
+
+  const addTodo = () => {
+    if (!title.trim()) return;
+    if (!live) {
+      setTodos([{ id: Date.now(), title, status: "offen", assigned_to: assignedTo || null, created_by: "Du" }, ...todos]);
+      setTitle(""); setAssignedTo("");
+      return;
+    }
+    apiPostQuery("/api/todos", { title, assigned_to: assignedTo }).then(() => { setTitle(""); setAssignedTo(""); refresh(); })
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const toggleTodo = (t) => {
+    if (!live) { setTodos(todos.map((x) => x.id === t.id ? { ...x, status: x.status === "erledigt" ? "offen" : "erledigt" } : x)); return; }
+    apiPostQuery(`/api/todos/${t.id}/toggle`, {}).then(refresh)
+      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const removeTodo = (t) => {
+    if (!live) { setTodos(todos.filter((x) => x.id !== t.id)); return; }
+    apiDelete(`/api/todos/${t.id}`).then(refresh)
+      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+  };
+
+  const filtered = todos.filter((t) => filter === "alle" ? true : t.status === filter);
+
   return (
-    <ComingSoonPanel
-      eyebrow="Organisation" title="To-Do-Liste" icon={ListChecks}
-      description="Eine Aufgabenliste fürs Team ist noch nicht angebunden. Wenn du willst, bauen wir als Nächstes das Backend dafür (Aufgaben anlegen, erledigen, zuweisen)."
-    />
+    <>
+      <SectionTitle eyebrow="Organisation" title="To-Do-Liste" />
+      <Panel style={{ padding: 16, marginBottom: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Neue Aufgabe…"
+          onKeyDown={(e) => e.key === "Enter" && addTodo()}
+          style={{ flex: 2, minWidth: 200, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <input
+          value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="Zugewiesen an (optional)"
+          onKeyDown={(e) => e.key === "Enter" && addTodo()}
+          style={{ flex: 1, minWidth: 160, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 }}
+        />
+        <PrimaryBtn icon={Plus} onClick={addTodo}>Hinzufügen</PrimaryBtn>
+      </Panel>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {["offen", "erledigt", "alle"].map((f) => (
+          <button
+            key={f} onClick={() => setFilter(f)}
+            style={{
+              padding: "6px 12px", borderRadius: 6, fontSize: 12.5, cursor: "pointer",
+              border: `1px solid ${filter === f ? C.gold : C.border}`,
+              background: filter === f ? `${C.gold}14` : "transparent",
+              color: filter === f ? C.gold : C.muted,
+            }}
+          >
+            {f === "offen" ? "Offen" : f === "erledigt" ? "Erledigt" : "Alle"}
+          </button>
+        ))}
+      </div>
+      <Panel style={{ padding: 0, overflow: "hidden" }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Keine Aufgaben in dieser Ansicht.</div>
+        ) : filtered.map((t, i) => (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
+            <button
+              onClick={() => toggleTodo(t)}
+              style={{
+                width: 20, height: 20, borderRadius: 5, flexShrink: 0, cursor: "pointer",
+                border: `1.5px solid ${t.status === "erledigt" ? C.green : C.border}`,
+                background: t.status === "erledigt" ? C.green : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", color: "#0A0E13", fontSize: 12, fontWeight: 700,
+              }}
+            >
+              {t.status === "erledigt" ? "✓" : ""}
+            </button>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, color: t.status === "erledigt" ? C.muted : C.text, textDecoration: t.status === "erledigt" ? "line-through" : "none" }}>
+                {t.title}
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                {t.assigned_to ? `Zugewiesen an ${t.assigned_to} · ` : ""}von {t.created_by}
+              </div>
+            </div>
+            <IconBtn icon={Trash2} danger onClick={() => removeTodo(t)} />
+          </div>
+        ))}
+      </Panel>
+    </>
   );
 }
 
