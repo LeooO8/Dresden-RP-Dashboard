@@ -338,27 +338,6 @@ function Toggle({ checked, onChange, label }) {
   );
 }
 
-function ComingSoonPanel({ eyebrow, title, description, icon: Icon }) {
-  return (
-    <>
-      <SectionTitle eyebrow={eyebrow} title={title} />
-      <Panel style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, maxWidth: 560 }}>
-        {Icon && (
-          <div style={{ width: 40, height: 40, borderRadius: 9, background: `${C.gold}1A`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
-            <Icon size={19} color={C.gold} />
-          </div>
-        )}
-        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text }}>
-          Dieser Bereich ist noch nicht angebunden
-        </div>
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
-          {description}
-        </div>
-      </Panel>
-    </>
-  );
-}
-
 /* ---------------------------------------------------------
    HUD TICKER (signature element)
 --------------------------------------------------------- */
@@ -1319,6 +1298,7 @@ const SETTINGS_GROUPS = [
   { title: "Shop-Einstellungen", fields: [["shop_kaufbestaetigung", "Kaufbestätigung erforderlich (ja/nein)"]] },
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
   { title: "Ticket-Einstellungen", fields: [["ticket_kategorie", "Kategorie für Ticket-Kanäle", "category"], ["ticket_support_rolle", "Support-Rolle (sieht alle Tickets)", "role"]] },
+  { title: "Ticket-Panel", fields: [["ticket_panel_titel", "Panel-Titel"], ["ticket_panel_text", "Panel-Beschreibungstext"], ["ticket_panel_bild_url", "Panel-Bannerbild (URL)"], ["ticket_kategorien", "Dropdown-Kategorien (kommagetrennt, z.B. Support, Bewerbung, Report)"]] },
   { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"], ["ankuendigungskanal", "Ankündigungskanal", "channel"]] },
   {
     title: "Willkommen", fields: [
@@ -1666,7 +1646,7 @@ function TicketsSection() {
 
   const closeTicket = (t) => {
     if (!live) { setTickets(tickets.map((x) => x.id === t.id ? { ...x, status: "geschlossen" } : x)); return; }
-    if (!confirm(`Ticket #${t.id} von ${t.username} wirklich schließen? Der Kanal wird gelöscht.`)) return;
+    if (!confirm(`Ticket ${t.case_id || "#" + t.id} von ${t.username} wirklich schließen? Der Kanal wird gelöscht.`)) return;
     apiPost(`/api/tickets/${t.id}/close`, {}).then(refresh)
       .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
   };
@@ -1677,7 +1657,7 @@ function TicketsSection() {
     <>
       <SectionTitle eyebrow="Support" title="Tickets" />
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
-        Nutzer öffnen Tickets über <code style={{ color: C.gold }}>/ticket</code> im Discord-Server. Vergiss nicht, unter Einstellungen eine Kategorie und optional eine Support-Rolle festzulegen.
+        Nutzer öffnen Tickets über <code style={{ color: C.gold }}>/ticket</code> oder über ein Panel mit Kategorie-Auswahl (<code style={{ color: C.gold }}>/ticket_panel</code> in einen Kanal posten). Kategorie, Panel-Text und Support-Rolle stellst du unter Einstellungen ein.
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         {["offen", "geschlossen", "alle"].map((f) => (
@@ -1701,14 +1681,15 @@ function TicketsSection() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>#</Th><Th>Nutzer</Th><Th>Betreff</Th><Th>Status</Th><Th>Erstellt</Th><Th align="right">Aktion</Th>
+                <Th>Fall-ID</Th><Th>Nutzer</Th><Th>Kategorie</Th><Th>Betreff</Th><Th>Status</Th><Th>Erstellt</Th><Th align="right">Aktion</Th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((t) => (
                 <tr key={t.id}>
-                  <Td>{t.id}</Td>
+                  <Td style={{ fontFamily: "monospace", fontSize: 12 }}>{t.case_id || `#${t.id}`}</Td>
                   <Td>{t.username}</Td>
+                  <Td>{t.category || "—"}</Td>
                   <Td>{t.subject || "—"}</Td>
                   <Td>
                     <Badge color={t.status === "offen" ? C.green : C.muted}>
