@@ -1307,6 +1307,11 @@ const SETTINGS_GROUPS = [
       ["willkommen_text", "Willkommenstext ({user}, {server}, {balance}, {mitgliederzahl})"],
     ]
   },
+  {
+    title: "Embed-Design", fields: [
+      ["embed_banner_url", "Banner-Bild für alle Embeds (Bild-URL, optional)"],
+    ]
+  },
 ];
 
 function SettingsSection() {
