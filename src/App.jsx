@@ -326,10 +326,19 @@ function CategorySelect({ value, onChange, placeholder, style }) {
   );
 }
 
-function Panel({ children, style, ...rest }) {
+function Panel({ children, style, hover, ...rest }) {
+  const [isHover, setIsHover] = useState(false);
   return (
     <div
-      style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, ...style }}
+      onMouseEnter={hover ? () => setIsHover(true) : undefined}
+      onMouseLeave={hover ? () => setIsHover(false) : undefined}
+      style={{
+        background: C.panel, border: `1px solid ${isHover ? C.gold + "55" : C.border}`, borderRadius: 10,
+        boxShadow: isHover ? "0 10px 28px rgba(0,0,0,0.35)" : "0 2px 10px rgba(0,0,0,0.18)",
+        transform: isHover ? "translateY(-1px)" : "none",
+        transition: "border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease",
+        ...style,
+      }}
       {...rest}
     >
       {children}
@@ -375,7 +384,7 @@ function SectionTitle({ eyebrow, title, action }) {
 
 function StatCard({ icon: Icon, label, value, delta, deltaUp, accent = C.gold }) {
   return (
-    <Panel style={{ padding: 18, flex: 1, minWidth: 160 }}>
+    <Panel hover style={{ padding: 18, flex: 1, minWidth: 160 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ width: 34, height: 34, borderRadius: 8, background: `${accent}1A`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon size={17} color={accent} />
@@ -412,13 +421,18 @@ function Td({ children, align, style }) {
 }
 
 function IconBtn({ icon: Icon, danger, ...rest }) {
+  const [hover, setHover] = useState(false);
   return (
     <button
       {...rest}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
-        width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`,
-        background: "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center",
-        color: danger ? C.red : C.muted, cursor: "pointer",
+        width: 28, height: 28, borderRadius: 6, border: `1px solid ${hover ? (danger ? C.red : C.gold) : C.border}`,
+        background: hover ? (danger ? `${C.red}14` : `${C.gold}14`) : "transparent",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        color: danger ? C.red : (hover ? C.gold : C.muted), cursor: "pointer",
+        transition: "border-color 0.15s, background 0.15s, color 0.15s",
         ...rest.style,
       }}>
       <Icon size={13} />
@@ -427,13 +441,19 @@ function IconBtn({ icon: Icon, danger, ...rest }) {
 }
 
 function PrimaryBtn({ children, icon: Icon, ...rest }) {
+  const [hover, setHover] = useState(false);
   return (
     <button
       {...rest}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         display: "flex", alignItems: "center", gap: 7, background: C.gold, color: "#1A1400",
         border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 700, fontSize: 13,
         fontFamily: "'Rajdhani', sans-serif", letterSpacing: 0.3, cursor: "pointer",
+        boxShadow: hover ? `0 4px 16px ${C.gold}55` : "0 0 0 transparent",
+        transform: hover ? "translateY(-1px)" : "none",
+        transition: "box-shadow 0.18s, transform 0.18s",
         ...rest.style,
       }}>
       {Icon && <Icon size={15} />} {children}
@@ -497,9 +517,10 @@ function Ticker({ overview }) {
           color: live ? C.green : C.muted, border: `1px solid ${live ? C.green : C.border}`,
           borderRadius: 5, padding: "3px 8px",
         }}>
-          {live ? <Wifi size={11} /> : <WifiOff size={11} />}
+          {live ? <Wifi size={11} style={{ animation: "livePulse 2s ease-in-out infinite" }} /> : <WifiOff size={11} />}
           {live ? "LIVE VERBUNDEN" : "DEMO-DATEN"}
         </span>
+        <style>{`@keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }`}</style>
         {live && user ? (
           <>
             <span style={{ fontSize: 11.5, color: C.text }}>{user.username}</span>
@@ -2119,9 +2140,20 @@ export default function DiscordBotDashboard() {
         ::-webkit-scrollbar { height: 6px; width: 6px; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 99px; }
 
-        .app-layout { display: flex; }
+        .app-bg-ambient {
+          position: fixed; inset: 0; pointer-events: none; z-index: 0;
+          background:
+            radial-gradient(600px circle at 12% 8%, ${C.gold}10, transparent 60%),
+            radial-gradient(500px circle at 92% 85%, ${C.cyan}0d, transparent 60%);
+        }
+        .app-layout { display: flex; position: relative; z-index: 1; }
         .app-sidebar { width: 232px; flex-shrink: 0; }
         .app-main { flex: 1; min-width: 0; padding: 28px 32px; max-width: 1180px; }
+
+        .nav-btn:not(.active):hover { background: ${C.panelAlt} !important; color: ${C.text} !important; }
+
+        .section-fade { animation: sectionFadeIn 0.22s ease-out; }
+        @keyframes sectionFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
         @media (max-width: 860px) {
           .app-layout { flex-direction: column; }
@@ -2131,6 +2163,7 @@ export default function DiscordBotDashboard() {
           .app-main { padding: 16px !important; max-width: 100%; }
         }
       `}</style>
+      <div className="app-bg-ambient" />
 
       <Ticker overview={overview} />
 
@@ -2162,6 +2195,7 @@ export default function DiscordBotDashboard() {
               <button
                 key={n.key}
                 onClick={() => setActive(n.key)}
+                className={`nav-btn${isActive ? " active" : ""}`}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, width: "100%",
                   padding: "9px 10px", marginBottom: 2, borderRadius: 7, border: "none",
@@ -2169,10 +2203,10 @@ export default function DiscordBotDashboard() {
                   color: isActive ? C.gold : C.muted, cursor: "pointer",
                   fontSize: 13.5, fontFamily: "'Inter', sans-serif", fontWeight: isActive ? 600 : 500,
                   borderLeft: isActive ? `2px solid ${C.gold}` : "2px solid transparent",
-                  textAlign: "left",
+                  textAlign: "left", transition: "background 0.15s, color 0.15s, border-color 0.15s",
                 }}
               >
-                <Icon size={16} />
+                <Icon size={16} style={{ filter: isActive ? `drop-shadow(0 0 4px ${C.gold}80)` : "none", transition: "filter 0.15s" }} />
                 {n.label}
                 {isActive && <ChevronRight size={13} style={{ marginLeft: "auto" }} />}
               </button>
@@ -2183,7 +2217,9 @@ export default function DiscordBotDashboard() {
 
         {/* Main */}
         <div className="app-main">
-          {needsGuildSelection ? <GuildSelector guilds={myGuilds} /> : <Active />}
+          <div key={active} className="section-fade">
+            {needsGuildSelection ? <GuildSelector guilds={myGuilds} /> : <Active />}
+          </div>
         </div>
       </div>
     </div>
