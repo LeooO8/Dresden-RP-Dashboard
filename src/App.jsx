@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, createContext, useContext } from "react";
+import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import {
   LayoutDashboard, Landmark, ShoppingBag, ShieldHalf, Gift, ScrollText,
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
@@ -75,6 +75,132 @@ function selectGuild(id) {
 
 const LiveContext = createContext({ live: false, user: null });
 const useLive = () => useContext(LiveContext);
+
+/* ---------------------------------------------------------
+   DIALOG SYSTEM — ersetzt native alert()/confirm()/prompt() durch
+   eigene, zum Design passende Overlays. confirm/prompt sind
+   Promise-basiert, damit bestehender "await"-Code minimal umgebaut
+   werden muss.
+--------------------------------------------------------- */
+const DialogContext = createContext(null);
+const useDialog = () => useContext(DialogContext);
+
+function DialogProvider({ children }) {
+  const [modal, setModal] = useState(null); // { kind: 'confirm'|'prompt', message, defaultValue, danger }
+  const [toasts, setToasts] = useState([]);
+  const resolverRef = useRef(null);
+
+  const confirmFn = (message, opts = {}) =>
+    new Promise((resolve) => {
+      resolverRef.current = resolve;
+      setModal({ kind: "confirm", message, danger: !!opts.danger, confirmLabel: opts.confirmLabel || "Bestätigen" });
+    });
+
+  const promptFn = (message, defaultValue = "") =>
+    new Promise((resolve) => {
+      resolverRef.current = resolve;
+      setModal({ kind: "prompt", message, defaultValue });
+    });
+
+  const toast = (message, kind = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, message, kind }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+  };
+
+  const closeModal = (result) => {
+    resolverRef.current?.(result);
+    resolverRef.current = null;
+    setModal(null);
+  };
+
+  return (
+    <DialogContext.Provider value={{ confirm: confirmFn, prompt: promptFn, toast }}>
+      {children}
+      {modal && <DialogModal modal={modal} onClose={closeModal} />}
+      <ToastStack toasts={toasts} />
+    </DialogContext.Provider>
+  );
+}
+
+function DialogModal({ modal, onClose }) {
+  const [value, setValue] = useState(modal.defaultValue || "");
+  const isPrompt = modal.kind === "prompt";
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose(isPrompt ? null : false);
+      if (e.key === "Enter" && isPrompt) onClose(value);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [value]);
+
+  return (
+    <div
+      onClick={() => onClose(isPrompt ? null : false)}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(8,10,14,0.6)", backdropFilter: "blur(2px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 22,
+          width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div style={{ fontSize: 14, color: C.text, lineHeight: 1.5, marginBottom: 16, whiteSpace: "pre-wrap" }}>{modal.message}</div>
+        {isPrompt && (
+          <input
+            autoFocus value={value} onChange={(e) => setValue(e.target.value)}
+            style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 7, padding: "9px 11px", color: C.text, fontSize: 13.5, marginBottom: 16 }}
+          />
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button
+            onClick={() => onClose(isPrompt ? null : false)}
+            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 7, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}
+          >
+            Abbrechen
+          </button>
+          <button
+            autoFocus={!isPrompt}
+            onClick={() => onClose(isPrompt ? value : true)}
+            style={{
+              background: modal.danger ? C.red : C.gold, border: "none", color: modal.danger ? "#fff" : "#1A1400",
+              fontWeight: 700, borderRadius: 7, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "'Rajdhani', sans-serif",
+            }}
+          >
+            {isPrompt ? "OK" : modal.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToastStack({ toasts }) {
+  const colors = { info: C.cyan, success: C.green, error: C.red };
+  return (
+    <div style={{ position: "fixed", bottom: 20, right: 20, display: "flex", flexDirection: "column", gap: 8, zIndex: 1100, maxWidth: 340 }}>
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          style={{
+            background: C.panel, border: `1px solid ${colors[t.kind] || C.border}`, borderLeft: `3px solid ${colors[t.kind] || C.cyan}`,
+            borderRadius: 8, padding: "11px 14px", fontSize: 13, color: C.text, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            animation: "toastIn 0.18s ease-out",
+          }}
+        >
+          {t.message}
+        </div>
+      ))}
+      <style>{`@keyframes toastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    </div>
+  );
+}
 
 
 /* ---------------------------------------------------------
@@ -530,6 +656,7 @@ function DashboardSection() {
 
 function BankSection() {
   const { live } = useLive();
+  const { toast, prompt } = useDialog();
   const [startBalance, setStartBalance] = useState(500);
   const [saved, setSaved] = useState(false);
   const [accounts, setAccounts] = useState(USERS);
@@ -555,44 +682,44 @@ function BankSection() {
   const saveStartBalance = () => {
     apiPost("/api/settings", { startguthaben: startBalance })
       .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2000); })
-      .catch((err) => alert(err.message || "Speichern fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Speichern fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const doTransfer = () => {
     if (!toId || !amount) return;
-    if (!live) { alert("Überweisungen sind nur im Live-Modus möglich."); return; }
+    if (!live) { toast("Überweisungen sind nur im Live-Modus möglich."); return; }
     apiPostQuery("/api/bank/transfer", { empfaenger_id: toId, betrag: amount })
-      .then(() => { setToId(""); setAmount(""); refresh(); })
-      .catch((err) => alert(err.message || "Überweisung fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .then(() => { setToId(""); setAmount(""); refresh(); toast("Überweisung gesendet.", "success"); })
+      .catch((err) => toast(err.message || "Überweisung fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const doDeposit = () => {
     if (!depositAmount) return;
-    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    if (!live) { toast("Nur im Live-Modus möglich."); return; }
     apiPostQuery("/api/bank/deposit", { betrag: depositAmount })
-      .then(() => { setDepositAmount(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .then(() => { setDepositAmount(""); refresh(); toast("Eingezahlt.", "success"); })
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const doWithdraw = () => {
     if (!withdrawAmount) return;
-    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    if (!live) { toast("Nur im Live-Modus möglich."); return; }
     apiPostQuery("/api/bank/withdraw", { betrag: withdrawAmount })
-      .then(() => { setWithdrawAmount(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .then(() => { setWithdrawAmount(""); refresh(); toast("Ausgezahlt.", "success"); })
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
-  const adjustBalance = (u) => {
-    const input = prompt(`Guthaben von ${u.name} anpassen — Betrag eingeben (z.B. 500 oder -200):`);
+  const adjustBalance = async (u) => {
+    const input = await prompt(`Guthaben von ${u.name} anpassen — Betrag eingeben (z.B. 500 oder -200):`);
     if (input === null || input.trim() === "") return;
     const delta = Number(input);
-    if (Number.isNaN(delta)) return alert("Bitte eine Zahl eingeben.");
+    if (Number.isNaN(delta)) return toast("Bitte eine Zahl eingeben.", "error");
     if (!live) {
       setAccounts(accounts.map((x) => x.id === u.id ? { ...x, balance: x.balance + delta } : x));
       return;
     }
     apiPostQuery(`/api/users/${u.id}/balance`, { delta }).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   return (
@@ -695,6 +822,7 @@ function BankSection() {
 
 function ShopSection() {
   const { live } = useLive();
+  const { toast, confirm, prompt } = useDialog();
   const [items, setItems] = useState(SHOP_ITEMS);
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -718,32 +846,34 @@ function ShopSection() {
       return;
     }
     apiPostQuery("/api/shop/items", { name: newName, category: newCategory, price: newPrice, role_id: newRoleId || "" })
-      .then(() => { setNewName(""); setNewCategory(""); setNewPrice(""); setNewRoleId(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .then(() => { setNewName(""); setNewCategory(""); setNewPrice(""); setNewRoleId(""); refresh(); toast("Artikel erstellt.", "success"); })
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
-  const editItem = (it) => {
-    const name = prompt("Name des Artikels:", it.name);
+  const editItem = async (it) => {
+    const name = await prompt("Name des Artikels:", it.name);
     if (name === null) return;
-    const category = prompt("Kategorie:", it.category);
+    const category = await prompt("Kategorie:", it.category);
     if (category === null) return;
-    const priceStr = prompt("Preis (₡):", it.price);
+    const priceStr = await prompt("Preis (₡):", it.price);
     if (priceStr === null) return;
     const price = Number(priceStr);
-    if (Number.isNaN(price)) return alert("Bitte einen gültigen Preis eingeben.");
+    if (Number.isNaN(price)) return toast("Bitte einen gültigen Preis eingeben.", "error");
+    const roleInput = await prompt("Rollen-ID, die beim Kauf vergeben wird (leer lassen für keine):", it.roleId || "");
+    if (roleInput === null) return;
     if (!live) {
-      setItems(items.map((x) => x.id === it.id ? { ...x, name, category, price } : x));
+      setItems(items.map((x) => x.id === it.id ? { ...x, name, category, price, roleId: roleInput } : x));
       return;
     }
-    apiPostQuery(`/api/shop/items/${it.id}`, { name, category, price, role_id: it.roleId || "" }).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+    apiPostQuery(`/api/shop/items/${it.id}`, { name, category, price, role_id: roleInput || "" }).then(refresh)
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
-  const removeItem = (it) => {
-    if (!confirm(`"${it.name}" wirklich löschen?`)) return;
+  const removeItem = async (it) => {
+    if (!(await confirm(`"${it.name}" wirklich löschen?`, { danger: true, confirmLabel: "Löschen" }))) return;
     if (!live) { setItems(items.filter((x) => x.id !== it.id)); return; }
     apiDelete(`/api/shop/items/${it.id}`).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   return (
@@ -799,6 +929,7 @@ function ShopSection() {
 
 function DienstSection() {
   const { live } = useLive();
+  const { toast } = useDialog();
   const [duty, setDuty] = useState(DUTY);
   const [newName, setNewName] = useState("");
   const [newTotal, setNewTotal] = useState(5);
@@ -821,7 +952,7 @@ function DienstSection() {
       return;
     }
     apiPostQuery(`/api/dienst/${d.id}/toggle`, {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const createFraction = () => {
@@ -832,14 +963,14 @@ function DienstSection() {
       return;
     }
     apiPostQuery("/api/dienst", { name: newName, total: newTotal, channel_id: newChannelId || "" })
-      .then(() => { setNewName(""); setNewTotal(5); setNewChannelId(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .then(() => { setNewName(""); setNewTotal(5); setNewChannelId(""); refresh(); toast("Fraktion angelegt.", "success"); })
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const removeFraction = (d) => {
     if (!live) { setDuty(duty.filter((x) => x.id !== d.id)); return; }
     apiDelete(`/api/dienst/${d.id}`).then(refresh)
-      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch(() => toast("Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   return (
@@ -889,7 +1020,7 @@ function DienstSection() {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: C.muted, marginBottom: 6 }}>
               <span>{d.onDuty} / {d.total} im Dienst</span>
-              <span><Clock size={11} style={{ display: "inline", marginRight: 3 }} />{d.hoursToday}h gesamt</span>
+              <span><Clock size={11} style={{ display: "inline", marginRight: 3 }} />{d.hoursToday}h heute</span>
             </div>
             {d.channelId && (
               <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -909,6 +1040,7 @@ function DienstSection() {
 
 function AfkSection() {
   const { live } = useLive();
+  const { toast } = useDialog();
   const [list, setList] = useState([]);
   const [myAfk, setMyAfk] = useState(null);
   const [reason, setReason] = useState("");
@@ -924,16 +1056,16 @@ function AfkSection() {
   }, [live]);
 
   const setAfk = () => {
-    if (!live) return alert("Nur im Live-Modus möglich.");
+    if (!live) return toast("Nur im Live-Modus möglich.");
     apiPostQuery("/api/afk/set", { grund: reason || "Kein Grund angegeben" })
       .then(() => { setReason(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const clearAfk = () => {
-    if (!live) return alert("Nur im Live-Modus möglich.");
+    if (!live) return toast("Nur im Live-Modus möglich.");
     apiPostQuery("/api/afk/clear", {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   return (
@@ -984,6 +1116,7 @@ function AfkSection() {
 
 function GiveawaySection() {
   const { live } = useLive();
+  const { toast, confirm } = useDialog();
   const [list, setList] = useState(GIVEAWAYS);
   const [preis, setPreis] = useState("");
   const [dauer, setDauer] = useState(60);
@@ -1000,22 +1133,22 @@ function GiveawaySection() {
 
   const create = () => {
     if (!preis.trim() || !dauer || !channelId.trim()) return;
-    if (!live) return alert("Nur im Live-Modus möglich.");
+    if (!live) return toast("Nur im Live-Modus möglich.");
     apiPostQuery("/api/giveaways", { preis, dauer_minuten: dauer, channel_id: channelId })
-      .then(() => { setPreis(""); setDauer(60); setChannelId(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .then(() => { setPreis(""); setDauer(60); setChannelId(""); refresh(); toast("Giveaway gestartet.", "success"); })
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
-  const end = (g) => {
-    if (!confirm(`Giveaway "${g.prize}" jetzt beenden und auslosen?`)) return;
+  const end = async (g) => {
+    if (!(await confirm(`Giveaway "${g.prize}" jetzt beenden und auslosen?`))) return;
     apiPostQuery(`/api/giveaways/${g.id}/end`, {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen", "error"));
   };
 
-  const reroll = (g) => {
-    if (!confirm(`Neuen Gewinner für "${g.prize}" auslosen?`)) return;
+  const reroll = async (g) => {
+    if (!(await confirm(`Neuen Gewinner für "${g.prize}" auslosen?`))) return;
     apiPostQuery(`/api/giveaways/${g.id}/reroll`, {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen", "error"));
   };
 
   return (
@@ -1073,6 +1206,7 @@ function LogsSection() {
   const { live } = useLive();
   const [filter, setFilter] = useState("alle");
   const [logList, setLogList] = useState(LOGS);
+  const [search, setSearch] = useState("");
   const types = ["alle", ...Object.keys(LOG_META)];
 
   useEffect(() => {
@@ -1080,11 +1214,13 @@ function LogsSection() {
     apiGet(`/api/logs?type=${filter}`).then(setLogList).catch(() => {});
   }, [live, filter]);
 
-  const filtered = live ? logList : (filter === "alle" ? LOGS : LOGS.filter((l) => l.type === filter));
+  const base = live ? logList : (filter === "alle" ? LOGS : LOGS.filter((l) => l.type === filter));
+  const q = search.trim().toLowerCase();
+  const filtered = q ? base.filter((l) => l.text.toLowerCase().includes(q)) : base;
   return (
     <>
       <SectionTitle eyebrow="Protokoll" title="Audit Logs" />
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         {types.map((t) => (
           <button key={t} onClick={() => setFilter(t)} style={{
             padding: "6px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer",
@@ -1096,6 +1232,13 @@ function LogsSection() {
             {t === "alle" ? "Alle" : LOG_META[t].label}
           </button>
         ))}
+        <div style={{ position: "relative", minWidth: 200, marginLeft: "auto" }}>
+          <Search size={13} style={{ position: "absolute", left: 9, top: 9, color: C.muted }} />
+          <input
+            value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Log-Text durchsuchen…"
+            style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px 6px 28px", color: C.text, fontSize: 12.5 }}
+          />
+        </div>
       </div>
       <Panel style={{ overflow: "hidden" }}>
         {filtered.length === 0 ? (
@@ -1114,6 +1257,43 @@ function LogsSection() {
   );
 }
 
+function ActivityBar({ count, max, day, delay }) {
+  const [grown, setGrown] = useState(false);
+  const [hover, setHover] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGrown(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, position: "relative" }}
+    >
+      {hover && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 6px)", background: C.panel, border: `1px solid ${C.border}`,
+          borderRadius: 6, padding: "4px 9px", fontSize: 11.5, color: C.text, whiteSpace: "nowrap",
+          boxShadow: "0 6px 18px rgba(0,0,0,0.4)", zIndex: 5,
+        }}>
+          {count} Aktion{count === 1 ? "" : "en"}
+        </div>
+      )}
+      <div style={{ fontSize: 10.5, color: hover ? C.gold : C.muted, fontFamily: "'JetBrains Mono', monospace", transition: "color 0.15s" }}>{count}</div>
+      <div style={{ width: "100%", height: 110, display: "flex", alignItems: "flex-end" }}>
+        <div
+          style={{
+            width: "100%", height: grown ? `${Math.max(2, (count / max) * 100)}%` : "0%",
+            borderRadius: "4px 4px 0 0", background: `linear-gradient(to top, ${C.gold}, ${C.cyan})`,
+            transition: "height 0.6s cubic-bezier(0.22, 1, 0.36, 1)", opacity: hover ? 1 : 0.9,
+            boxShadow: hover ? `0 0 14px ${C.gold}55` : "none",
+          }}
+        />
+      </div>
+      <span style={{ fontSize: 11, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{day}</span>
+    </div>
+  );
+}
+
 function StatsSection() {
   const { live } = useLive();
   const [stats, setStats] = useState(null);
@@ -1126,6 +1306,8 @@ function StatsSection() {
   const days = stats?.weekly_activity?.map((d) => d.day) || ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
   const counts = stats?.weekly_activity?.map((d) => d.count) || [0, 0, 0, 0, 0, 0, 0];
   const max = Math.max(1, ...counts);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const busiest = counts.every((c) => c === 0) ? null : days[counts.indexOf(Math.max(...counts))];
 
   return (
     <>
@@ -1135,21 +1317,22 @@ function StatsSection() {
         <StatCard icon={Activity} label="Aktive Nutzer (7T)" value={stats ? stats.active_users_7d : "0"} accent={C.green} />
         <StatCard icon={Coins} label="Gesamtvermögen" value={fmtMoney(stats ? stats.total_balance : 0)} accent={C.gold} />
         <StatCard icon={ShoppingBag} label="Shop-Verkäufe" value={stats ? stats.shop_sales : "0"} accent={C.cyan} />
-        <StatCard icon={Clock} label="Dienststunden (gesamt)" value={`${stats ? stats.duty_hours_today : 0}h`} accent={C.green} />
+        <StatCard icon={Clock} label="Dienststunden (heute)" value={`${stats ? stats.duty_hours_today : 0}h`} accent={C.green} />
         <StatCard icon={Gift} label="Giveaways gesamt" value={stats ? stats.giveaway_count : "0"} accent={C.gold} />
         <StatCard icon={Activity} label="Bot-Uptime" value={formatUptime(stats?.uptime_seconds)} accent={C.text} />
       </div>
       <Panel style={{ padding: 20 }}>
-        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 18 }}>
-          Aktivität diese Woche (Anzahl protokollierter Aktionen)
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 6 }}>
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text }}>
+            Aktivität diese Woche
+          </div>
+          <div style={{ fontSize: 11.5, color: C.muted }}>
+            {total} Aktionen insgesamt{busiest ? ` · lebhaftester Tag: ${busiest}` : ""}
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 140 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 14 }}>
           {counts.map((c, i) => (
-            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 10.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{c}</div>
-              <div style={{ width: "100%", height: `${Math.max(2, (c / max) * 100)}%`, borderRadius: "4px 4px 0 0", background: `linear-gradient(to top, ${C.gold}, ${C.cyan})` }} />
-              <span style={{ fontSize: 11, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{days[i]}</span>
-            </div>
+            <ActivityBar key={i} count={c} max={max} day={days[i]} delay={i * 60} />
           ))}
         </div>
       </Panel>
@@ -1216,6 +1399,7 @@ function UsersSection() {
 
 function SecuritySection() {
   const { live } = useLive();
+  const { toast, confirm } = useDialog();
   const [sessions, setSessions] = useState([]);
   const [overview, setOverview] = useState(null);
 
@@ -1227,10 +1411,10 @@ function SecuritySection() {
     apiGet("/api/security/overview").then(setOverview).catch(() => {});
   }, [live]);
 
-  const revokeSession = (s) => {
-    if (!confirm("Diese Sitzung wirklich beenden? Das Gerät muss sich danach neu anmelden.")) return;
+  const revokeSession = async (s) => {
+    if (!(await confirm("Diese Sitzung wirklich beenden? Das Gerät muss sich danach neu anmelden.", { danger: true, confirmLabel: "Beenden" }))) return;
     apiPostQuery(`/api/security/sessions/${s.id}/revoke`, {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen", "error"));
   };
 
   return (
@@ -1316,6 +1500,7 @@ const SETTINGS_GROUPS = [
 
 function SettingsSection() {
   const { live } = useLive();
+  const { toast } = useDialog();
   const [values, setValues] = useState({});
   const [savedGroup, setSavedGroup] = useState(null);
 
@@ -1329,10 +1514,10 @@ function SettingsSection() {
   const saveGroup = (group) => {
     const payload = {};
     group.fields.forEach(([key]) => { payload[key] = values[key] ?? ""; });
-    if (!live) return alert("Nur im Live-Modus möglich.");
+    if (!live) return toast("Nur im Live-Modus möglich.");
     apiPost("/api/settings", payload)
       .then(() => { setSavedGroup(group.title); setTimeout(() => setSavedGroup(null), 2000); })
-      .catch((err) => alert(err.message || "Speichern fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Speichern fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   return (
@@ -1373,6 +1558,7 @@ function SettingsSection() {
 
 function ModuleSection() {
   const { live } = useLive();
+  const { toast } = useDialog();
   const [modules, setModules] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -1394,7 +1580,7 @@ function ModuleSection() {
     setModules((m) => ({ ...m, [key]: { ...m[key], enabled: !current } }));
     apiPost(`/api/modules/${key}`, { enabled: !current }).catch((err) => {
       setModules((m) => ({ ...m, [key]: { ...m[key], enabled: current } }));
-      alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?");
+      toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error");
     });
   };
 
@@ -1433,6 +1619,7 @@ const TEAM_ROLES = ["Support", "Moderator", "Admin", "Owner"];
 
 function TeamSection() {
   const { live } = useLive();
+  const { toast, confirm } = useDialog();
   const [team, setTeam] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [search, setSearch] = useState("");
@@ -1451,18 +1638,18 @@ function TeamSection() {
   const changeRole = (member, role) => {
     if (!live) { setTeam(team.map((x) => x.id === member.id ? { ...x, role } : x)); return; }
     apiPostQuery(`/api/users/${member.id}/role`, { role }).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
-  const removeFromTeam = (member) => {
-    if (!confirm(`${member.name} wirklich aus dem Team entfernen?`)) return;
+  const removeFromTeam = async (member) => {
+    if (!(await confirm(`${member.name} wirklich aus dem Team entfernen?`, { danger: true, confirmLabel: "Entfernen" }))) return;
     changeRole(member, "Mitglied");
   };
 
   const addToTeam = (u, role) => {
     if (!live) { setTeam([...team, { id: u.id, name: u.name, role, status: u.status, joined: u.joined }]); setShowAdd(false); return; }
     apiPostQuery(`/api/users/${u.id}/role`, { role }).then(() => { refresh(); setShowAdd(false); setSearch(""); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const teamIds = new Set(team.map((t) => t.id));
@@ -1537,6 +1724,7 @@ function TeamSection() {
 
 function TodoSection() {
   const { live } = useLive();
+  const { toast } = useDialog();
   const [todos, setTodos] = useState([]);
   const [title, setTitle] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
@@ -1557,19 +1745,19 @@ function TodoSection() {
       return;
     }
     apiPostQuery("/api/todos", { title, assigned_to: assignedTo }).then(() => { setTitle(""); setAssignedTo(""); refresh(); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const toggleTodo = (t) => {
     if (!live) { setTodos(todos.map((x) => x.id === t.id ? { ...x, status: x.status === "erledigt" ? "offen" : "erledigt" } : x)); return; }
     apiPostQuery(`/api/todos/${t.id}/toggle`, {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const removeTodo = (t) => {
     if (!live) { setTodos(todos.filter((x) => x.id !== t.id)); return; }
     apiDelete(`/api/todos/${t.id}`).then(refresh)
-      .catch(() => alert("Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch(() => toast("Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const filtered = todos.filter((t) => filter === "alle" ? true : t.status === filter);
@@ -1639,8 +1827,10 @@ function TodoSection() {
 
 function TicketsSection() {
   const { live } = useLive();
+  const { toast, confirm } = useDialog();
   const [tickets, setTickets] = useState([]);
   const [filter, setFilter] = useState("offen");
+  const [search, setSearch] = useState("");
 
   const refresh = () => apiGet("/api/tickets").then(setTickets).catch(() => {});
 
@@ -1649,14 +1839,20 @@ function TicketsSection() {
     refresh();
   }, [live]);
 
-  const closeTicket = (t) => {
+  const closeTicket = async (t) => {
     if (!live) { setTickets(tickets.map((x) => x.id === t.id ? { ...x, status: "geschlossen" } : x)); return; }
-    if (!confirm(`Ticket ${t.case_id || "#" + t.id} von ${t.username} wirklich schließen? Der Kanal wird gelöscht.`)) return;
+    if (!(await confirm(`Ticket ${t.case_id || "#" + t.id} von ${t.username} wirklich schließen? Der Kanal wird gelöscht.`, { danger: true, confirmLabel: "Schließen" }))) return;
     apiPost(`/api/tickets/${t.id}/close`, {}).then(refresh)
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
-  const filtered = tickets.filter((t) => filter === "alle" ? true : t.status === filter);
+  const filtered = tickets
+    .filter((t) => filter === "alle" ? true : t.status === filter)
+    .filter((t) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return t.username?.toLowerCase().includes(q) || t.case_id?.toLowerCase().includes(q) || t.category?.toLowerCase().includes(q) || t.subject?.toLowerCase().includes(q);
+    });
 
   return (
     <>
@@ -1664,20 +1860,29 @@ function TicketsSection() {
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
         Nutzer öffnen Tickets über <code style={{ color: C.gold }}>/ticket</code> oder über ein Panel mit Kategorie-Auswahl (<code style={{ color: C.gold }}>/ticket_panel</code> in einen Kanal posten). Kategorie, Panel-Text und Support-Rolle stellst du unter Einstellungen ein.
       </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-        {["offen", "geschlossen", "alle"].map((f) => (
-          <button
-            key={f} onClick={() => setFilter(f)}
-            style={{
-              padding: "6px 12px", borderRadius: 6, fontSize: 12.5, cursor: "pointer",
-              border: `1px solid ${filter === f ? C.gold : C.border}`,
-              background: filter === f ? `${C.gold}14` : "transparent",
-              color: filter === f ? C.gold : C.muted,
-            }}
-          >
-            {f === "offen" ? "Offen" : f === "geschlossen" ? "Geschlossen" : "Alle"}
-          </button>
-        ))}
+      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["offen", "geschlossen", "alle"].map((f) => (
+            <button
+              key={f} onClick={() => setFilter(f)}
+              style={{
+                padding: "6px 12px", borderRadius: 6, fontSize: 12.5, cursor: "pointer",
+                border: `1px solid ${filter === f ? C.gold : C.border}`,
+                background: filter === f ? `${C.gold}14` : "transparent",
+                color: filter === f ? C.gold : C.muted,
+              }}
+            >
+              {f === "offen" ? "Offen" : f === "geschlossen" ? "Geschlossen" : "Alle"}
+            </button>
+          ))}
+        </div>
+        <div style={{ position: "relative", minWidth: 200 }}>
+          <Search size={13} style={{ position: "absolute", left: 9, top: 9, color: C.muted }} />
+          <input
+            value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nutzer, Fall-ID, Kategorie…"
+            style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px 6px 28px", color: C.text, fontSize: 12.5 }}
+          />
+        </div>
       </div>
       <Panel style={{ padding: 0, overflow: "hidden" }}>
         {filtered.length === 0 ? (
@@ -1686,7 +1891,7 @@ function TicketsSection() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <Th>Fall-ID</Th><Th>Nutzer</Th><Th>Kategorie</Th><Th>Betreff</Th><Th>Status</Th><Th>Erstellt</Th><Th align="right">Aktion</Th>
+                <Th>Fall-ID</Th><Th>Nutzer</Th><Th>Kategorie</Th><Th>Betreff</Th><Th>Status</Th><Th>Beansprucht</Th><Th>Erstellt</Th><Th align="right">Aktion</Th>
               </tr>
             </thead>
             <tbody>
@@ -1701,6 +1906,7 @@ function TicketsSection() {
                       <StatusDot status={t.status === "offen" ? "online" : "offline"} /> {t.status === "offen" ? "Offen" : "Geschlossen"}
                     </Badge>
                   </Td>
+                  <Td style={{ color: C.muted }}>{t.claimed_by || "—"}</Td>
                   <Td>{t.created_at ? new Date(t.created_at).toLocaleString("de-DE") : "—"}</Td>
                   <Td align="right">
                     {t.status === "offen" ? (
@@ -1721,6 +1927,7 @@ function TicketsSection() {
 
 function BotSection() {
   const { live } = useLive();
+  const { toast } = useDialog();
   const [overview, setOverview] = useState(null);
   const [maintenance, setMaintenance] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1743,25 +1950,25 @@ function BotSection() {
   const toggleMaintenance = (val) => {
     if (!live) { setMaintenance(val); return; }
     apiPost("/api/settings", { wartungsmodus: val ? "ja" : "nein" }).then(() => setMaintenance(val))
-      .catch((err) => alert(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?"));
+      .catch((err) => toast(err.message || "Fehlgeschlagen — bist du mit Discord angemeldet?", "error"));
   };
 
   const doSync = () => {
-    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    if (!live) { toast("Nur im Live-Modus möglich."); return; }
     setSyncing(true);
     apiPost("/api/bot/sync", {})
-      .then((r) => alert(`✅ ${r.synced_count} Befehle synchronisiert.`))
-      .catch((err) => alert(err.message || "Sync fehlgeschlagen — bist du mit Discord angemeldet?"))
+      .then((r) => toast(`✅ ${r.synced_count} Befehle synchronisiert.`, "success"))
+      .catch((err) => toast(err.message || "Sync fehlgeschlagen — bist du mit Discord angemeldet?", "error"))
       .finally(() => setSyncing(false));
   };
 
   const sendAnnouncement = () => {
     if (!annTitel.trim() || !annText.trim()) return;
-    if (!live) { alert("Nur im Live-Modus möglich."); return; }
+    if (!live) { toast("Nur im Live-Modus möglich."); return; }
     setSending(true);
     apiPostQuery("/api/announce", { titel: annTitel, nachricht: annText })
-      .then((r) => { alert(`✅ Gesendet in #${r.channel}`); setAnnTitel(""); setAnnText(""); })
-      .catch((err) => alert(err.message || "Fehlgeschlagen — ist ein Ankündigungskanal in den Einstellungen hinterlegt?"))
+      .then((r) => { toast(`✅ Gesendet in #${r.channel}`, "success"); setAnnTitel(""); setAnnText(""); })
+      .catch((err) => toast(err.message || "Fehlgeschlagen — ist ein Ankündigungskanal in den Einstellungen hinterlegt?", "error"))
       .finally(() => setSending(false));
   };
 
@@ -1901,6 +2108,7 @@ export default function DiscordBotDashboard() {
     !myGuilds.some((g) => g.id === GuildState.id);
 
   return (
+    <DialogProvider>
     <LiveContext.Provider value={{ live, user, myGuilds }}>
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif" }}>
       <style>{`
@@ -1980,5 +2188,6 @@ export default function DiscordBotDashboard() {
       </div>
     </div>
     </LiveContext.Provider>
+    </DialogProvider>
   );
 }
