@@ -170,7 +170,7 @@ function DialogModal({ modal, onClose }) {
             onClick={() => onClose(isPrompt ? value : true)}
             style={{
               background: modal.danger ? C.red : C.gold, border: "none", color: modal.danger ? "#fff" : "#1A1400",
-              fontWeight: 700, borderRadius: 7, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "'Rajdhani', sans-serif",
+              fontWeight: 700, borderRadius: 7, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "'Fraunces', serif",
             }}
           >
             {isPrompt ? "OK" : modal.confirmLabel}
@@ -211,16 +211,16 @@ function ToastStack({ toasts }) {
    red #FB5B5B (off/danger)
 --------------------------------------------------------- */
 const C = {
-  bg: "#0A0E13",
-  panel: "#121821",
-  panelAlt: "#171F2A",
-  border: "#232D3B",
-  text: "#E7ECF2",
-  muted: "#7C8798",
-  gold: "#F2B705",
-  cyan: "#38BDF8",
-  green: "#4ADE80",
-  red: "#FB5B5B",
+  bg: "#17181B",       // kühles, neutrales Dunkelgrau, kein Braun-/Orangestich
+  panel: "#1E2023",
+  panelAlt: "#26282C",
+  border: "#34363B",
+  text: "#EAEAEA",
+  muted: "#8D9096",
+  gold: "#E3B341",     // klares, kühleres Gold statt muffigem Amber-Braun
+  cyan: "#5F93B0",      // Leitstellen-Blau, kühl
+  green: "#6FA97C",
+  red: "#C25B54",
 };
 
 const fmtMoney = (n) =>
@@ -350,10 +350,10 @@ function Badge({ children, color = C.muted, bg }) {
   return (
     <span
       style={{
-        display: "inline-flex", alignItems: "center", gap: 5,
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600,
-        color, background: bg || `${color}1A`, border: `1px solid ${color}40`,
-        padding: "3px 8px", borderRadius: 5, letterSpacing: 0.3,
+        display: "inline-flex", alignItems: "center", gap: 6,
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 500,
+        color, background: bg || "transparent", border: `1px solid ${C.border}`,
+        padding: "3px 9px", borderRadius: 3, letterSpacing: 0.3,
       }}
     >
       {children}
@@ -373,7 +373,7 @@ function SectionTitle({ eyebrow, title, action }) {
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.gold, letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
           {eyebrow}
         </div>
-        <h1 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 28, fontWeight: 700, color: C.text, margin: 0, letterSpacing: 0.3 }}>
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, color: C.text, margin: 0, letterSpacing: 0.3 }}>
           {title}
         </h1>
       </div>
@@ -395,7 +395,7 @@ function StatCard({ icon: Icon, label, value, delta, deltaUp, accent = C.gold })
           </span>
         )}
       </div>
-      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 26, fontWeight: 700, color: C.text, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, color: C.text, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6 }}>{label}</div>
     </Panel>
   );
@@ -450,8 +450,9 @@ function PrimaryBtn({ children, icon: Icon, ...rest }) {
       style={{
         display: "flex", alignItems: "center", gap: 7, background: C.gold, color: "#1A1400",
         border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 700, fontSize: 13,
-        fontFamily: "'Rajdhani', sans-serif", letterSpacing: 0.3, cursor: "pointer",
-        boxShadow: hover ? `0 4px 16px ${C.gold}55` : "0 0 0 transparent",
+        fontFamily: "'Fraunces', serif", letterSpacing: 0.3, cursor: "pointer",
+        boxShadow: hover ? "0 3px 10px rgba(0,0,0,0.3)" : "0 0 0 transparent",
+        filter: hover ? "brightness(1.06)" : "none",
         transform: hover ? "translateY(-1px)" : "none",
         transition: "box-shadow 0.18s, transform 0.18s",
         ...rest.style,
@@ -553,7 +554,7 @@ function Ticker({ overview }) {
           <a href={`${API_BASE}/auth/login`} style={{
             display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "#1A1400",
             background: C.gold, borderRadius: 5, padding: "5px 10px", fontWeight: 700,
-            textDecoration: "none", fontFamily: "'Rajdhani', sans-serif",
+            textDecoration: "none", fontFamily: "'Fraunces', serif",
           }}>
             <LogIn size={12} /> Mit Discord anmelden
           </a>
@@ -612,14 +613,14 @@ function DashboardSection() {
               <div style={{
                 width: 42, height: 42, borderRadius: 10, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`,
                 display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800,
-                fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 18, flexShrink: 0,
+                fontFamily: "'Fraunces', serif", color: "#0A0E13", fontSize: 18, flexShrink: 0,
                 boxShadow: "0 0 0 3px rgba(0,0,0,0.4)",
               }}>
                 {user.username?.[0]?.toUpperCase() || "?"}
               </div>
             )}
             <div>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: 0.3, textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: 0.3, textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
                 Willkommen, {user.username}!
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.gold, letterSpacing: 1, marginTop: 4, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
@@ -637,7 +638,7 @@ function DashboardSection() {
       </div>
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
         <Panel style={{ padding: 18, flex: 2 }}>
-          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
             Live-Systemstatus
           </div>
           {[
@@ -655,7 +656,7 @@ function DashboardSection() {
           ))}
         </Panel>
         <Panel style={{ padding: 18, flex: 1 }}>
-          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
             Letzte Aktionen
           </div>
           {logs.length === 0 ? (
@@ -803,7 +804,7 @@ function BankSection() {
         </div>
       )}
 
-      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Konten</div>
+      <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Konten</div>
       <Panel style={{ overflow: "hidden", marginBottom: 20 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><Th>Benutzer</Th><Th>Bankguthaben</Th><Th>Bargeld</Th><Th>Rolle</Th><Th align="right">Aktion</Th></tr></thead>
@@ -821,7 +822,7 @@ function BankSection() {
         </table>
       </Panel>
 
-      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Transaktionsverlauf</div>
+      <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Transaktionsverlauf</div>
       <Panel style={{ overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><Th>Von</Th><Th>An</Th><Th>Typ</Th><Th align="right">Betrag</Th><Th align="right">Zeit</Th></tr></thead>
@@ -937,7 +938,7 @@ function ShopSection() {
                   <IconBtn icon={Trash2} danger onClick={() => removeItem(it)} />
                 </div>
               </div>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>{it.name}</div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>{it.name}</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", color: C.gold, fontSize: 15, fontWeight: 700 }}>{fmtMoney(it.price)}</div>
               <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{it.sold}× verkauft{it.roleId ? " · vergibt Rolle" : ""}</div>
             </Panel>
@@ -1025,7 +1026,7 @@ function DienstSection() {
         {duty.map((d) => (
           <Panel key={d.id || d.fraction} style={{ padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text }}>{d.fraction}</div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>{d.fraction}</div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
                   onClick={() => toggle(d)}
@@ -1110,7 +1111,7 @@ function AfkSection() {
         </Panel>
       )}
 
-      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
+      <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
         Aktuell AFK ({list.length})
       </div>
       <Panel style={{ overflow: "hidden" }}>
@@ -1203,7 +1204,7 @@ function GiveawaySection() {
                 <Badge color={g.status === "aktiv" ? C.green : C.muted}>{g.status === "aktiv" ? "Aktiv" : "Beendet"}</Badge>
                 <span style={{ fontSize: 10.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>#{g.id}</span>
               </div>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 8 }}>{g.prize}</div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 8 }}>{g.prize}</div>
               <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 4 }}>{g.entries} Teilnahmen</div>
               <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>
                 {g.status === "aktiv" ? `Endet: ${g.ends ? new Date(g.ends).toLocaleString("de-DE") : "—"}` : `Gewinner: ${g.winner || "niemand teilgenommen"}`}
@@ -1344,7 +1345,7 @@ function StatsSection() {
       </div>
       <Panel style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 6 }}>
-          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>
             Aktivität diese Woche
           </div>
           <div style={{ fontSize: 11.5, color: C.muted }}>
@@ -1396,7 +1397,7 @@ function UsersSection() {
               <tr key={u.id}>
                 <Td>
                   <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 7, background: C.panelAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: "'Rajdhani', sans-serif" }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 7, background: C.panelAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: "'Fraunces', serif" }}>
                       {u.name?.[0]?.toUpperCase() || "?"}
                     </div>
                     {u.name}
@@ -1445,7 +1446,7 @@ function SecuritySection() {
         <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <LogIn size={16} color={C.cyan} />
-            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Discord Login</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, color: C.text }}>Discord Login</span>
           </div>
           <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
             Anmeldung über OAuth2 · {overview ? overview.logins_24h : 0} Anmeldungen in den letzten 24h
@@ -1455,14 +1456,14 @@ function SecuritySection() {
         <Panel style={{ padding: 18, flex: 1, minWidth: 220 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <KeyRound size={16} color={C.gold} />
-            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Admin-Berechtigungen</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, color: C.text }}>Admin-Berechtigungen</span>
           </div>
           <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
             {overview ? overview.admin_count : 0} Nutzer mit Admin/Owner-Rolle (unter Benutzerverwaltung einstellbar)
           </div>
         </Panel>
       </div>
-      <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Login-Verlauf</div>
+      <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Login-Verlauf</div>
       {sessions.length === 0 ? (
         <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Logins aufgezeichnet.</div></Panel>
       ) : (
@@ -1550,7 +1551,7 @@ function SettingsSection() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 14 }}>
         {SETTINGS_GROUPS.map((g) => (
           <Panel key={g.title} style={{ padding: 18 }}>
-            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 14 }}>{g.title}</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 14 }}>{g.title}</div>
             {g.fields.map(([key, label, type]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
@@ -1622,7 +1623,7 @@ function ModuleSection() {
           {entries.map(([key, mod]) => (
             <Panel key={key} style={{ padding: 18, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: C.text }}>{mod.name}</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, color: C.text }}>{mod.name}</div>
                 <Badge color={mod.enabled ? C.green : C.red} bg={undefined}>
                   <StatusDot status={mod.enabled ? "online" : "offline"} /> {mod.enabled ? "Aktiv" : "Deaktiviert"}
                 </Badge>
@@ -2006,7 +2007,7 @@ function BotSection() {
         <Panel style={{ padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <RefreshCw size={16} color={C.cyan} />
-            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Befehle synchronisieren</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, color: C.text }}>Befehle synchronisieren</span>
           </div>
           <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
             Registriert alle Slash-Commands neu bei Discord. Nötig, wenn neue Befehle nicht auftauchen.
@@ -2018,7 +2019,7 @@ function BotSection() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <WifiOff size={16} color={C.gold} />
-              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Wartungsmodus</span>
+              <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, color: C.text }}>Wartungsmodus</span>
             </div>
             <Toggle checked={maintenance} onChange={toggleMaintenance} />
           </div>
@@ -2031,7 +2032,7 @@ function BotSection() {
       <Panel style={{ padding: 18, maxWidth: 520 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <Megaphone size={16} color={C.gold} />
-          <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text }}>Ankündigung senden</span>
+          <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, color: C.text }}>Ankündigung senden</span>
         </div>
         <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
           Postet direkt in den unter Einstellungen festgelegten Ankündigungskanal. Geht auch per <code style={{ color: C.gold }}>/ankuendigen</code> in Discord.
@@ -2078,7 +2079,7 @@ function GuildSelector({ guilds }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 14 }}>
           {guilds.map((g) => (
             <Panel key={g.id} style={{ padding: 18, cursor: "pointer" }} onClick={() => selectGuild(g.id)}>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
                 {g.name}
               </div>
               <PrimaryBtn onClick={() => selectGuild(g.id)}>Auswählen</PrimaryBtn>
@@ -2133,7 +2134,7 @@ export default function DiscordBotDashboard() {
     <LiveContext.Provider value={{ live, user, myGuilds }}>
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100%; background: ${C.bg}; }
         input:focus, select:focus { outline: none; border-color: ${C.gold} !important; }
@@ -2143,8 +2144,8 @@ export default function DiscordBotDashboard() {
         .app-bg-ambient {
           position: fixed; inset: 0; pointer-events: none; z-index: 0;
           background:
-            radial-gradient(600px circle at 12% 8%, ${C.gold}10, transparent 60%),
-            radial-gradient(500px circle at 92% 85%, ${C.cyan}0d, transparent 60%);
+            radial-gradient(1000px circle at 50% -10%, ${C.gold}06, transparent 55%),
+            radial-gradient(800px circle at 100% 100%, #00000030, transparent 60%);
         }
         .app-layout { display: flex; position: relative; z-index: 1; }
         .app-sidebar { width: 232px; flex-shrink: 0; }
@@ -2177,12 +2178,12 @@ export default function DiscordBotDashboard() {
                 style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, objectFit: "cover" }}
               />
             ) : (
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontFamily: "'Rajdhani', sans-serif", color: "#0A0E13", fontSize: 15, flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontFamily: "'Fraunces', serif", color: "#0A0E13", fontSize: 15, flexShrink: 0 }}>
                 ⌁
               </div>
             )}
             <div>
-              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: 0.3 }}>DIENSTKONTROLLE</div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 13, letterSpacing: 0.2 }}>DIENSTKONTROLLE</div>
               <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>Server Control Panel</div>
             </div>
           </div>
@@ -2206,7 +2207,7 @@ export default function DiscordBotDashboard() {
                   textAlign: "left", transition: "background 0.15s, color 0.15s, border-color 0.15s",
                 }}
               >
-                <Icon size={16} style={{ filter: isActive ? `drop-shadow(0 0 4px ${C.gold}80)` : "none", transition: "filter 0.15s" }} />
+                <Icon size={16} />
                 {n.label}
                 {isActive && <ChevronRight size={13} style={{ marginLeft: "auto" }} />}
               </button>
