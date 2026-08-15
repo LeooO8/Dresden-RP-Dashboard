@@ -272,7 +272,7 @@ const NAV = [
 /* ---------------------------------------------------------
    PRIMITIVES
 --------------------------------------------------------- */
-function ChannelSelect({ value, onChange, placeholder, style }) {
+function ChannelSelect({ value, onChange, placeholder, style, disabled }) {
   const { live } = useLive();
   const [channels, setChannels] = useState([]);
   useEffect(() => {
@@ -281,8 +281,8 @@ function ChannelSelect({ value, onChange, placeholder, style }) {
   }, [live]);
   return (
     <select
-      value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, ...style }}
+      value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
+      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", ...style }}
     >
       <option value="">{placeholder || "Kanal wählen…"}</option>
       {channels.map((c) => <option key={c.id} value={c.id}># {c.name}</option>)}
@@ -290,7 +290,7 @@ function ChannelSelect({ value, onChange, placeholder, style }) {
   );
 }
 
-function RoleSelect({ value, onChange, placeholder, style }) {
+function RoleSelect({ value, onChange, placeholder, style, disabled }) {
   const { live } = useLive();
   const [roles, setRoles] = useState([]);
   useEffect(() => {
@@ -299,8 +299,8 @@ function RoleSelect({ value, onChange, placeholder, style }) {
   }, [live]);
   return (
     <select
-      value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, ...style }}
+      value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
+      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", ...style }}
     >
       <option value="">{placeholder || "Rolle wählen…"}</option>
       {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -308,7 +308,7 @@ function RoleSelect({ value, onChange, placeholder, style }) {
   );
 }
 
-function CategorySelect({ value, onChange, placeholder, style }) {
+function CategorySelect({ value, onChange, placeholder, style, disabled }) {
   const { live } = useLive();
   const [categories, setCategories] = useState([]);
   useEffect(() => {
@@ -317,8 +317,8 @@ function CategorySelect({ value, onChange, placeholder, style }) {
   }, [live]);
   return (
     <select
-      value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, ...style }}
+      value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
+      style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer", ...style }}
     >
       <option value="">{placeholder || "Kategorie wählen…"}</option>
       {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1525,10 +1525,12 @@ function SettingsSection() {
   const { toast } = useDialog();
   const [values, setValues] = useState({});
   const [savedGroup, setSavedGroup] = useState(null);
+  const [myRole, setMyRole] = useState(null);
 
   useEffect(() => {
     if (!live) return;
     apiGet("/api/settings").then(setValues).catch(() => {});
+    apiGet("/api/my-role").then((r) => setMyRole(r.role)).catch(() => {});
   }, [live]);
 
   const setField = (key, val) => setValues((v) => ({ ...v, [key]: val }));
@@ -1549,30 +1551,45 @@ function SettingsSection() {
         Änderungen gelten sofort, nachdem du auf "Speichern" geklickt hast — pro Gruppe einzeln.
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 14 }}>
-        {SETTINGS_GROUPS.map((g) => (
-          <Panel key={g.title} style={{ padding: 18 }}>
-            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 14 }}>{g.title}</div>
+        {SETTINGS_GROUPS.map((g) => {
+          const isOwnerOnly = g.title === "Ticket-Panel";
+          const locked = isOwnerOnly && live && myRole !== null && myRole !== "Owner";
+          return (
+          <Panel key={g.title} style={{ padding: 18, opacity: locked ? 0.6 : 1, position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, color: C.text }}>{g.title}</div>
+              {isOwnerOnly && <Lock size={12} color={C.muted} title="Nur Server-Owner" />}
+            </div>
+            {locked && (
+              <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 12, fontStyle: "italic" }}>
+                Nur der Server-Owner darf diese Einstellungen ändern.
+              </div>
+            )}
             {g.fields.map(([key, label, type]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
                 {type === "channel" ? (
-                  <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
+                  <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} disabled={locked} />
                 ) : type === "category" ? (
-                  <CategorySelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
+                  <CategorySelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} disabled={locked} />
                 ) : type === "role" ? (
-                  <RoleSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
+                  <RoleSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} disabled={locked} />
                 ) : (
                   <input
                     value={values[key] ?? ""} onChange={(e) => setField(key, e.target.value)}
-                    style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
+                    disabled={locked}
+                    style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace", cursor: locked ? "not-allowed" : "text" }}
                     placeholder="—"
                   />
                 )}
               </div>
             ))}
-            <PrimaryBtn onClick={() => saveGroup(g)}>{savedGroup === g.title ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
+            <PrimaryBtn onClick={() => saveGroup(g)} disabled={locked} style={locked ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
+              {savedGroup === g.title ? "Gespeichert ✓" : "Speichern"}
+            </PrimaryBtn>
           </Panel>
-        ))}
+          );
+        })}
       </div>
     </>
   );
