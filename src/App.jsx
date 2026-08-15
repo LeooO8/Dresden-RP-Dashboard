@@ -211,10 +211,10 @@ function ToastStack({ toasts }) {
    red #FB5B5B (off/danger)
 --------------------------------------------------------- */
 const C = {
-  bg: "#171A1E",       // grau-blau statt neutralem Grau
-  panel: "#1E2227",
-  panelAlt: "#262A30",
-  border: "#343941",
+  bg: "#151A21",       // stärkerer Blaustich als zuletzt, aber gedämpfter als das ursprüngliche kalte Blau
+  panel: "#1C232C",
+  panelAlt: "#242C37",
+  border: "#323C49",
   text: "#E8EAED",
   muted: "#8D939C",
   gold: "#E3B341",     // klares, kühleres Gold
