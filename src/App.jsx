@@ -1551,42 +1551,32 @@ function SettingsSection() {
         Änderungen gelten sofort, nachdem du auf "Speichern" geklickt hast — pro Gruppe einzeln.
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 14 }}>
-        {SETTINGS_GROUPS.map((g) => {
-          const isOwnerOnly = g.title === "Ticket-Panel";
-          const locked = isOwnerOnly && live && myRole !== null && myRole !== "Owner";
+        {SETTINGS_GROUPS.filter((g) => g.title !== "Ticket-Panel" || !live || myRole === "Owner").map((g) => {
           return (
-          <Panel key={g.title} style={{ padding: 18, opacity: locked ? 0.6 : 1, position: "relative" }}>
+          <Panel key={g.title} style={{ padding: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, color: C.text }}>{g.title}</div>
-              {isOwnerOnly && <Lock size={12} color={C.muted} title="Nur Server-Owner" />}
+              {g.title === "Ticket-Panel" && <Lock size={12} color={C.muted} title="Nur Server-Owner" />}
             </div>
-            {locked && (
-              <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 12, fontStyle: "italic" }}>
-                Nur der Server-Owner darf diese Einstellungen ändern.
-              </div>
-            )}
             {g.fields.map(([key, label, type]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
                 {type === "channel" ? (
-                  <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} disabled={locked} />
+                  <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
                 ) : type === "category" ? (
-                  <CategorySelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} disabled={locked} />
+                  <CategorySelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
                 ) : type === "role" ? (
-                  <RoleSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} disabled={locked} />
+                  <RoleSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
                 ) : (
                   <input
                     value={values[key] ?? ""} onChange={(e) => setField(key, e.target.value)}
-                    disabled={locked}
-                    style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace", cursor: locked ? "not-allowed" : "text" }}
+                    style={{ width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
                     placeholder="—"
                   />
                 )}
               </div>
             ))}
-            <PrimaryBtn onClick={() => saveGroup(g)} disabled={locked} style={locked ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
-              {savedGroup === g.title ? "Gespeichert ✓" : "Speichern"}
-            </PrimaryBtn>
+            <PrimaryBtn onClick={() => saveGroup(g)}>{savedGroup === g.title ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
           </Panel>
           );
         })}
