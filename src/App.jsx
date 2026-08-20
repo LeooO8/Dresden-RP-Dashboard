@@ -501,9 +501,9 @@ function Ticker({ overview }) {
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
       background: C.panelAlt, borderBottom: `1px solid ${C.border}`,
-      padding: "9px 24px", fontFamily: "'JetBrains Mono', monospace",
+      padding: "9px 24px", fontFamily: "'JetBrains Mono', monospace", flexWrap: "wrap",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 28, overflowX: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 28, overflowX: "auto", flex: 1, minWidth: 0 }}>
         {items.map((it, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
             <span style={{ width: 6, height: 6, borderRadius: 99, background: it.color, boxShadow: `0 0 6px ${it.color}` }} />
@@ -805,8 +805,8 @@ function BankSection() {
       )}
 
       <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Konten</div>
-      <Panel style={{ overflow: "hidden", marginBottom: 20 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <Panel style={{ overflowX: "auto", marginBottom: 20 }}>
+        <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
           <thead><tr><Th>Benutzer</Th><Th>Bankguthaben</Th><Th>Bargeld</Th><Th>Rolle</Th><Th align="right">Aktion</Th></tr></thead>
           <tbody>
             {accounts.map((u) => (
@@ -823,8 +823,8 @@ function BankSection() {
       </Panel>
 
       <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>Transaktionsverlauf</div>
-      <Panel style={{ overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <Panel style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
           <thead><tr><Th>Von</Th><Th>An</Th><Th>Typ</Th><Th align="right">Betrag</Th><Th align="right">Zeit</Th></tr></thead>
           <tbody>
             {txns.map((t) => (
@@ -1114,11 +1114,11 @@ function AfkSection() {
       <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
         Aktuell AFK ({list.length})
       </div>
-      <Panel style={{ overflow: "hidden" }}>
+      <Panel style={{ overflowX: "auto" }}>
         {list.length === 0 ? (
           <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Niemand ist gerade AFK.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
             <thead><tr><Th>Benutzer</Th><Th>Grund</Th><Th align="right">Seit</Th></tr></thead>
             <tbody>
               {list.map((u) => (
@@ -1262,11 +1262,11 @@ function LogsSection() {
           />
         </div>
       </div>
-      <Panel style={{ overflow: "hidden" }}>
+      <Panel style={{ overflowX: "auto" }}>
         {filtered.length === 0 ? (
           <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Keine Einträge gefunden.</div>
         ) : filtered.map((l, i) => (
-          <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
+          <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", minWidth: 480, borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
             <Badge color={(LOG_META[l.type] || LOG_META.system).color}>{(LOG_META[l.type] || LOG_META.system).label}</Badge>
             <span style={{ flex: 1, fontSize: 13, color: C.text }}>{l.text}</span>
             <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1389,8 +1389,8 @@ function UsersSection() {
       {filtered.length === 0 ? (
         <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Keine Benutzer gefunden.</div></Panel>
       ) : (
-      <Panel style={{ overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <Panel style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
           <thead><tr><Th>Benutzer</Th><Th>Status</Th><Th>Rolle</Th><Th>Kontostand</Th><Th>Dienst</Th><Th>AFK</Th><Th>Beigetreten</Th></tr></thead>
           <tbody>
             {filtered.map((u) => (
@@ -1467,8 +1467,8 @@ function SecuritySection() {
       {sessions.length === 0 ? (
         <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Logins aufgezeichnet.</div></Panel>
       ) : (
-      <Panel style={{ overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <Panel style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
           <thead><tr><Th>Benutzer</Th><Th>Gerät</Th><Th>IP-Adresse</Th><Th>Zeitpunkt</Th><Th align="right">Aktion</Th></tr></thead>
           <tbody>
             {sessions.map((s) => (
@@ -1719,11 +1719,11 @@ function TeamSection() {
           )}
         </Panel>
       )}
-      <Panel style={{ padding: 0, overflow: "hidden" }}>
+      <Panel style={{ padding: 0, overflowX: "auto" }}>
         {team.length === 0 ? (
           <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Noch keine Team-Mitglieder. Admin/Owner werden automatisch über die Discord-Rolle synchronisiert, weitere Rollen kannst du hier manuell vergeben.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
             <thead>
               <tr><Th>Name</Th><Th>Status</Th><Th>Rolle</Th><Th align="right">Aktion</Th></tr>
             </thead>
@@ -1913,11 +1913,11 @@ function TicketsSection() {
           />
         </div>
       </div>
-      <Panel style={{ padding: 0, overflow: "hidden" }}>
+      <Panel style={{ padding: 0, overflowX: "auto" }}>
         {filtered.length === 0 ? (
           <div style={{ padding: 18, fontSize: 13, color: C.muted }}>Keine Tickets in dieser Ansicht.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
             <thead>
               <tr>
                 <Th>Fall-ID</Th><Th>Nutzer</Th><Th>Kategorie</Th><Th>Betreff</Th><Th>Status</Th><Th>Beansprucht</Th><Th>Bewertung</Th><Th>Erstellt</Th><Th align="right">Aktion</Th>
