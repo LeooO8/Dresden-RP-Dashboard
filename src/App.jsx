@@ -4,7 +4,8 @@ import {
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
-  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone
+  Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone,
+  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -211,16 +212,18 @@ function ToastStack({ toasts }) {
    red #FB5B5B (off/danger)
 --------------------------------------------------------- */
 const C = {
-  bg: "#151A21",       // stärkerer Blaustich als zuletzt, aber gedämpfter als das ursprüngliche kalte Blau
-  panel: "#1C232C",
-  panelAlt: "#242C37",
-  border: "#323C49",
-  text: "#E8EAED",
-  muted: "#8D939C",
-  gold: "#E3B341",     // klares, kühleres Gold
-  cyan: "#5F93B0",      // Leitstellen-Blau, kühl
-  green: "#6FA97C",
-  red: "#C25B54",
+  bg: "#121017",       // tiefes, violett-getöntes Schwarz
+  panel: "#1B1826",
+  panelAlt: "#23202F",
+  border: "#332E42",
+  text: "#EDEBF2",
+  muted: "#948FA3",
+  gold: "#8B5CF6",     // primärer Akzent: Violett statt Gold (Name bleibt aus Kompatibilitätsgründen "gold")
+  cyan: "#5B9BD8",      // sekundäres Blau (z.B. "Nachrichten")
+  green: "#4ADE80",
+  red: "#F0555A",
+  pink: "#EC5A94",      // Tickets-Akzent
+  orange: "#F2A950",    // Giveaways-Akzent
 };
 
 const fmtMoney = (n) =>
@@ -247,22 +250,23 @@ const LOG_META = {
   dienst: { label: "Dienst", color: C.green },
   login: { label: "Login", color: "#B79CFF" },
   system: { label: "System", color: C.muted },
-  afk: { label: "AFK", color: "#F2B705" },
+  afk: { label: "AFK", color: C.orange },
 };
 
 const NAV = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "dashboard", label: "Übersicht", icon: LayoutDashboard },
   { key: "bank", label: "Bank-System", icon: Landmark },
   { key: "shop", label: "Shop-System", icon: ShoppingBag },
   { key: "dienst", label: "Dienstsystem", icon: ShieldHalf },
   { key: "afk", label: "AFK-System", icon: Moon },
   { key: "team", label: "Team", icon: Users2 },
+  { key: "meetings", label: "Meetings", icon: CalendarDays },
   { key: "giveaway", label: "Giveaways", icon: Gift },
   { key: "todo", label: "To-Do-Liste", icon: ListChecks },
-  { key: "logs", label: "Audit Logs", icon: ScrollText },
   { key: "tickets", label: "Tickets", icon: Ticket },
   { key: "stats", label: "Statistiken", icon: BarChart3 },
   { key: "users", label: "Benutzer", icon: Users },
+  { key: "logs", label: "Audit Logs", icon: ScrollText },
   { key: "security", label: "Sicherheit", icon: Lock },
   { key: "bot", label: "Bot", icon: BotIcon },
   { key: "module", label: "Module", icon: LayoutGrid },
@@ -493,7 +497,7 @@ function Ticker({ overview }) {
   const items = [
     { label: "BOT-STATUS", value: overview ? overview.bot_status?.toUpperCase() : "ONLINE", color: C.green },
     { label: "MITGLIEDER", value: overview ? overview.member_count.toLocaleString("de-DE") : "0", color: C.text },
-    { label: "IM DIENST", value: overview ? overview.on_duty : "7", color: C.cyan },
+    { label: "IM DIENST", value: overview ? overview.on_duty : "0", color: C.cyan },
     { label: "GESAMTGUTHABEN", value: fmtMoney(overview ? overview.total_balance : 0), color: C.gold },
     { label: "UPTIME", value: overview ? formatUptime(overview.uptime_seconds) : "0T 0H 0M", color: C.text },
   ];
@@ -575,103 +579,228 @@ function formatUptime(seconds) {
   return `${days}T ${hours}H ${minutes}M`;
 }
 
+function Sparkline({ data, color }) {
+  if (!data || data.length < 2) {
+    return <div style={{ height: 28, display: "flex", alignItems: "center", fontSize: 10, color: C.muted }}>noch keine Verlaufsdaten</div>;
+  }
+  const w = 100, h = 28;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={28} preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StatCardTrend({ icon: Icon, label, value, delta, accent, sparkline, sparklineColor }) {
+  const deltaUp = typeof delta === "number" && delta > 0;
+  const deltaDown = typeof delta === "number" && delta < 0;
+  return (
+    <Panel hover style={{ padding: 18, flex: "1 1 200px", minWidth: 200 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 9, background: `${accent}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={18} color={accent} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, color: C.muted }}>{label}</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 700, color: C.text, lineHeight: 1.15 }}>{value}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
+        {typeof delta === "number" ? (
+          <span style={{ fontSize: 11.5, color: deltaUp ? C.green : deltaDown ? C.red : C.muted, display: "flex", alignItems: "center", gap: 2, whiteSpace: "nowrap" }}>
+            {deltaUp && <ArrowUpRight size={12} />}{deltaDown && <ArrowDownRight size={12} />}
+            {delta > 0 ? "+" : ""}{delta} diese Woche
+          </span>
+        ) : <span />}
+        <div style={{ width: 90 }}><Sparkline data={sparkline} color={sparklineColor || accent} /></div>
+      </div>
+    </Panel>
+  );
+}
+
+function DonutChart({ segments, size = 150, thickness = 22 }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const r = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {segments.every((s) => s.value === 0) ? (
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.border} strokeWidth={thickness} />
+      ) : segments.map((s, i) => {
+        const frac = s.value / total;
+        const dash = frac * circumference;
+        const el = (
+          <circle
+            key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={s.color} strokeWidth={thickness}
+            strokeDasharray={`${dash} ${circumference - dash}`} strokeDashoffset={-offset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`} strokeLinecap="butt"
+          />
+        );
+        offset += dash;
+        return el;
+      })}
+    </svg>
+  );
+}
+
 function DashboardSection() {
   const { live, user } = useLive();
+  const { toast } = useDialog();
   const [overview, setOverview] = useState(null);
-  const [bannerUrl, setBannerUrl] = useState("");
 
   useEffect(() => {
     if (!live) return;
     apiGet("/api/overview").then(setOverview).catch(() => {});
-    apiGet("/api/settings").then((s) => setBannerUrl(s.welcome_banner_url || "")).catch(() => {});
   }, [live]);
 
   const logs = overview?.recent_logs || [];
-  const bannerStyle = bannerUrl
-    ? {
-        backgroundImage: `linear-gradient(90deg, rgba(10,14,19,0.55), rgba(10,14,19,0.85)), url(${bannerUrl})`,
-        backgroundSize: "cover", backgroundPosition: "center",
-      }
-    : { background: `linear-gradient(90deg, ${C.gold}22, ${C.cyan}11)` };
+  const trends = overview?.trends || {};
+  const breakdown = overview?.balance_breakdown || { bank: 0, shop: 0, dienst: 0, sonstiges: 0 };
+  const info = overview?.server_info || {};
+
+  const donutSegments = [
+    { label: "Bank-System", value: breakdown.bank || 0, color: C.gold },
+    { label: "Shop-System", value: breakdown.shop || 0, color: C.cyan },
+    { label: "Dienstlohn", value: breakdown.dienst || 0, color: C.green },
+    { label: "Sonstiges", value: breakdown.sonstiges || 0, color: C.orange },
+  ];
+  const donutTotal = donutSegments.reduce((s, x) => s + x.value, 0);
+
+  const quickAccess = [
+    { key: "bank", label: "Bank-System", icon: Landmark, color: C.green },
+    { key: "shop", label: "Shop-System", icon: ShoppingBag, color: C.cyan },
+    { key: "dienst", label: "Dienstsystem", icon: ShieldHalf, color: C.orange },
+    { key: "tickets", label: "Tickets", icon: Ticket, color: C.pink },
+    { key: "giveaway", label: "Giveaways", icon: Gift, color: C.gold },
+    { key: "stats", label: "Statistiken", icon: BarChart3, color: C.cyan },
+  ];
 
   return (
     <>
-      <SectionTitle eyebrow="Systemübersicht" title="Dashboard" />
-      {live && user && (
-        <Panel style={{
-          position: "relative", overflow: "hidden", marginBottom: 18, minHeight: 120,
-          ...bannerStyle, borderColor: `${C.gold}40`,
-        }}>
-          <div style={{ position: "relative", padding: "22px 24px", display: "flex", alignItems: "center", gap: 14, height: "100%" }}>
-            {user.avatar ? (
-              <img
-                src={`https://cdn.discordapp.com/avatars/${user.sub}/${user.avatar}.png?size=128`}
-                alt={user.username}
-                style={{ width: 42, height: 42, borderRadius: 10, boxShadow: "0 0 0 3px rgba(0,0,0,0.4)", flexShrink: 0, objectFit: "cover" }}
-              />
-            ) : (
-              <div style={{
-                width: 42, height: 42, borderRadius: 10, background: `linear-gradient(135deg, ${C.gold}, ${C.cyan})`,
-                display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800,
-                fontFamily: "'Fraunces', serif", color: "#0A0E13", fontSize: 18, flexShrink: 0,
-                boxShadow: "0 0 0 3px rgba(0,0,0,0.4)",
-              }}>
-                {user.username?.[0]?.toUpperCase() || "?"}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 13, color: C.muted }}>Willkommen zurück,</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, color: C.text }}>
+            {user?.username || "Admin"}! 👋
+          </div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>Hier ist die Übersicht deines Servers.</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+        <StatCardTrend icon={Users} label="Mitglieder" value={overview ? overview.member_count : "0"} delta={overview?.member_delta_7d} accent={C.gold} sparkline={trends.mitglieder} />
+        <StatCardTrend icon={MessageSquare} label="Nachrichten" value={overview ? overview.message_total : "0"} delta={overview?.message_delta_7d} accent={C.cyan} sparkline={trends.nachrichten} />
+        <StatCardTrend icon={Ticket} label="Offene Tickets" value={overview ? overview.open_tickets : "0"} delta={overview?.open_tickets_delta_7d} accent={C.pink} sparkline={trends.tickets} />
+        <StatCardTrend icon={Gift} label="Giveaways" value={overview ? overview.active_giveaways : "0"} delta={overview?.active_giveaways_delta_7d} accent={C.orange} sparkline={trends.giveaways} />
+        <StatCardTrend icon={Coins} label="Guthaben Gesamt" value={fmtMoney(overview ? overview.total_balance : 0)} delta={overview?.balance_delta_7d} accent={C.green} sparkline={trends.guthaben} />
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 16, alignItems: "stretch" }}>
+        <Panel style={{ padding: 20, flex: "2 1 380px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+            <Coins size={16} color={C.gold} />
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>Guthaben Überblick</div>
+          </div>
+          <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <DonutChart segments={donutSegments} />
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 700, color: C.text }}>{fmtMoney(donutTotal)}</div>
+                <div style={{ fontSize: 10, color: C.muted }}>Bewegtes Volumen</div>
               </div>
-            )}
-            <div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: 0.3, textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
-                Willkommen, {user.username}!
-              </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.gold, letterSpacing: 1, marginTop: 4, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
-                SERVER CONTROL PANEL
-              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 160, display: "flex", flexDirection: "column", gap: 10 }}>
+              {donutSegments.map((s) => (
+                <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 3, background: s.color }} />
+                    <span style={{ fontSize: 12.5, color: C.text }}>{s.label}</span>
+                  </div>
+                  <span style={{ fontSize: 12.5, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>{fmtMoney(s.value)}</span>
+                </div>
+              ))}
             </div>
           </div>
         </Panel>
-      )}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
-        <StatCard icon={Users} label="Mitglieder gesamt" value={overview ? overview.member_count : "0"} accent={C.cyan} />
-        <StatCard icon={ShieldHalf} label="Aktive Dienste" value={overview ? overview.on_duty : "0"} accent={C.green} />
-        <StatCard icon={Coins} label="Gesamtguthaben" value={fmtMoney(overview ? overview.total_balance : 0)} accent={C.gold} />
-        <StatCard icon={Activity} label="Bot-Uptime" value={formatUptime(overview?.uptime_seconds)} accent={C.text} />
-      </div>
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <Panel style={{ padding: 18, flex: 2 }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
-            Live-Systemstatus
+
+        <Panel style={{ padding: 20, flex: "1 1 260px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <Building2 size={16} color={C.gold} />
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>Server Informationen</div>
           </div>
           {[
-            { name: "Discord Gateway", ok: overview?.bot_status === "online" },
-            { name: "Bank-System", ok: true },
-            { name: "Shop-System", ok: true },
-            { name: "Dienstsystem", ok: true },
-            { name: "Datenbank", ok: true },
-            { name: "OAuth2 Login", ok: true },
-          ].map((s, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < 5 ? `1px solid ${C.border}` : "none" }}>
-              <span style={{ fontSize: 13.5, color: C.text }}>{s.name}</span>
-              <Badge color={s.ok ? C.green : C.red}><StatusDot status={s.ok ? "online" : "offline"} /> {s.ok ? "Betriebsbereit" : "Gestört"}</Badge>
-            </div>
-          ))}
-        </Panel>
-        <Panel style={{ padding: 18, flex: 1 }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 14 }}>
-            Letzte Aktionen
-          </div>
-          {logs.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: C.muted }}>Noch keine Aktionen.</div>
-          ) : logs.map((l) => (
-            <div key={l.id} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
-              <span style={{ width: 6, height: 6, marginTop: 5, borderRadius: 99, background: LOG_META[l.type]?.color || C.muted, flexShrink: 0 }} />
-              <div>
-                <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>{l.text}</div>
-                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>{new Date(l.time).toLocaleString("de-DE")}</div>
-              </div>
+            ["Servername", info.name || "—"],
+            ["Server-ID", info.id || "—"],
+            ["Erstellt am", info.created_at ? new Date(info.created_at).toLocaleDateString("de-DE") : "—"],
+            ["Mitglieder", info.member_count ?? "—"],
+            ["Rollen", info.role_count ?? "—"],
+          ].map(([k, v], i, arr) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <span style={{ fontSize: 12.5, color: C.muted }}>{k}</span>
+              <span style={{ fontSize: 12.5, color: C.text, fontFamily: "'JetBrains Mono', monospace", textAlign: "right" }}>{v}</span>
             </div>
           ))}
         </Panel>
       </div>
+
+      <Panel style={{ padding: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <Activity size={16} color={C.gold} />
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>Neueste Aktivitäten</div>
+        </div>
+        {logs.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.muted }}>Noch keine Aktionen.</div>
+        ) : logs.map((l, i) => (
+          <div key={l.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: i < logs.length - 1 ? `1px solid ${C.border}` : "none" }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              background: `${LOG_META[l.type]?.color || C.muted}22`,
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: 99, background: LOG_META[l.type]?.color || C.muted }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.4 }}>{l.text}</div>
+              <div style={{ fontSize: 10.5, color: C.muted, marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
+                {new Date(l.time).toLocaleString("de-DE")}
+              </div>
+            </div>
+          </div>
+        ))}
+      </Panel>
+
+      <Panel style={{ padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <RefreshCw size={16} color={C.gold} />
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>Schnellzugriff</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px,1fr))", gap: 12 }}>
+          {quickAccess.map((q) => (
+            <button
+              key={q.key} onClick={() => window.dispatchEvent(new CustomEvent("dashboard-nav", { detail: q.key }))}
+              style={{
+                display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start", textAlign: "left",
+                background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: 14, cursor: "pointer",
+              }}
+            >
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${q.color}22`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <q.icon size={16} color={q.color} />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{q.label}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>Verwalten →</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Panel>
     </>
   );
 }
@@ -1132,6 +1261,59 @@ function AfkSection() {
           </table>
         )}
       </Panel>
+    </>
+  );
+}
+
+function MeetingsSection() {
+  const { live } = useLive();
+  const [meetings, setMeetings] = useState([]);
+
+  const refresh = () => apiGet("/api/meetings").then(setMeetings).catch(() => {});
+
+  useEffect(() => {
+    if (!live) return;
+    refresh();
+    const interval = setInterval(refresh, 20000);
+    return () => clearInterval(interval);
+  }, [live]);
+
+  return (
+    <>
+      <SectionTitle eyebrow="Team" title="Meetings" />
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>
+        Neue Meetings ansetzen geht per <code style={{ color: C.gold }}>/meeting erstellen</code> in Discord — hier siehst du, wer zu-/abgesagt hat.
+      </div>
+      {meetings.length === 0 ? (
+        <Panel style={{ padding: 18 }}><div style={{ fontSize: 13, color: C.muted }}>Noch keine Meetings angesetzt.</div></Panel>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {meetings.map((m) => (
+            <Panel key={m.id} style={{ padding: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text }}>📅 {m.title}</div>
+                <span style={{ fontSize: 11, color: C.muted }}>Angesetzt von {m.created_by}</span>
+              </div>
+              {m.inhalt && <div style={{ fontSize: 13, color: C.text, marginBottom: 10 }}>{m.inhalt}</div>}
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 12.5, color: C.muted }}>
+                {m.von && <span><Clock size={12} style={{ display: "inline", marginRight: 4 }} />Vom {m.von}</span>}
+                {m.bis && <span><Clock size={12} style={{ display: "inline", marginRight: 4 }} />Bis {m.bis}</span>}
+                {m.ort && <span><MapPin size={12} style={{ display: "inline", marginRight: 4 }} />{m.ort}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 11.5, color: C.green, marginBottom: 4 }}>✅ Zugesagt ({m.accepted.length})</div>
+                  <div style={{ fontSize: 12.5, color: C.text }}>{m.accepted.map((p) => p.name).join(", ") || "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11.5, color: C.red, marginBottom: 4 }}>❌ Abgesagt ({m.declined.length})</div>
+                  <div style={{ fontSize: 12.5, color: C.text }}>{m.declined.map((p) => p.name).join(", ") || "—"}</div>
+                </div>
+              </div>
+            </Panel>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -2061,7 +2243,7 @@ function BotSection() {
 
 const SECTIONS = {
   dashboard: DashboardSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
-  afk: AfkSection, team: TeamSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
+  afk: AfkSection, team: TeamSection, meetings: MeetingsSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
   tickets: TicketsSection, stats: StatsSection, users: UsersSection, security: SecuritySection,
   bot: BotSection, module: ModuleSection, settings: SettingsSection,
 };
@@ -2107,6 +2289,12 @@ export default function DiscordBotDashboard() {
   const [myGuilds, setMyGuilds] = useState(null); // null = noch nicht geladen
   const [guildInfo, setGuildInfo] = useState(null);
   const Active = SECTIONS[active];
+
+  useEffect(() => {
+    const handler = (e) => setActive(e.detail);
+    window.addEventListener("dashboard-nav", handler);
+    return () => window.removeEventListener("dashboard-nav", handler);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -2191,8 +2379,8 @@ export default function DiscordBotDashboard() {
               </div>
             )}
             <div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 13, letterSpacing: 0.2 }}>DIENSTKONTROLLE</div>
-              <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>Server Control Panel</div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, letterSpacing: 0.3 }}>{(guildInfo?.name || "DRESDEN RP").toUpperCase()}</div>
+              <div style={{ fontSize: 9.5, color: C.gold, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1.2 }}>DAS RP-ERLEBNIS</div>
             </div>
           </div>
 
