@@ -14,7 +14,7 @@ import {
    Solange die API nicht erreichbar ist, bleiben alle Bereiche
    mit den Beispieldaten unten voll funktionsfähig ("Demo-Modus").
 --------------------------------------------------------- */
-const API_BASE = "";
+<a href={`${API_BASE}/auth/login`}>
 
 // Mehrserver-Unterstützung: welcher Discord-Server gerade im Dashboard
 // ausgewählt ist. Wird von allen API-Aufrufen automatisch mitgeschickt.
