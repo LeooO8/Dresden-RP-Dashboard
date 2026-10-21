@@ -5,7 +5,7 @@ import {
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
   Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone,
-  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown
+  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown, Sparkles
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -264,6 +264,7 @@ const NAV = [
   { key: "giveaway", label: "Giveaways", icon: Gift },
   { key: "todo", label: "To-Do-Liste", icon: ListChecks },
   { key: "tickets", label: "Tickets", icon: Ticket },
+  { key: "ki", label: "KI-Support", icon: Sparkles },
   { key: "stats", label: "Statistiken", icon: BarChart3 },
   { key: "users", label: "Benutzer", icon: Users },
   { key: "logs", label: "Audit Logs", icon: ScrollText },
@@ -2241,10 +2242,281 @@ function BotSection() {
   );
 }
 
+/* ---------------------------------------------------------
+   KI-SUPPORT — Einstellungen, Wissensbasis, Statistik (pro Server)
+--------------------------------------------------------- */
+const KI_INPUT_STYLE = { width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 10px", color: C.text, fontSize: 13 };
+
+function KiField({ label, hint, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
+      {children}
+      {hint && <div style={{ fontSize: 11, color: C.muted, marginTop: 4, opacity: 0.85 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function KiSettingsTab() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [cfg, setCfg] = useState(null);
+  const [meta, setMeta] = useState({ providers: {}, models: {}, api_key_set: false });
+  const [roles, setRoles] = useState([]);
+  const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    if (!live) return;
+    apiGet("/api/ki/config")
+      .then((r) => { setCfg(r.values); setMeta({ providers: r.providers, models: r.models, api_key_set: r.api_key_set }); })
+      .catch((err) => toast(err.message?.includes("403") ? "Nur Admins und der Server-Owner dürfen den KI-Support verwalten." : "KI-Einstellungen konnten nicht geladen werden.", "error"));
+    apiGet("/api/guild-roles").then(setRoles).catch(() => {});
+  }, [live]);
+
+  if (!live) return <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Der KI-Support ist nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</Panel>;
+  if (!cfg) return <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Lade…</Panel>;
+
+  const set = (k, v) => setCfg((c) => ({ ...c, [k]: v }));
+  const roleIds = (cfg.ki_rollen || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const roleName = (id) => roles.find((r) => String(r.id) === String(id))?.name || id;
+  const models = meta.models[cfg.ki_anbieter] || [];
+
+  const save = () => {
+    apiPost("/api/ki/config", cfg)
+      .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2000); })
+      .catch((err) => toast(err.message || "Speichern fehlgeschlagen.", "error"));
+  };
+  const test = () => {
+    setTesting(true);
+    apiPost("/api/ki/test", {})
+      .then((r) => toast(r.ok ? `Verbindung erfolgreich (${r.model}).` : `Verbindung fehlgeschlagen: ${r.error}`, r.ok ? "success" : "error"))
+      .catch((err) => toast(err.message || "Test fehlgeschlagen.", "error"))
+      .finally(() => setTesting(false));
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px,1fr))", gap: 14 }}>
+      <Panel style={{ padding: 18 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Allgemein</div>
+        <KiField label="KI-Support in Tickets" hint="Antwortet nur in offenen Support-Tickets und nur dem Ticket-Ersteller – bis ein Teammitglied übernimmt.">
+          <Toggle checked={cfg.ki_aktiv === "ja"} onChange={(v) => set("ki_aktiv", v ? "ja" : "nein")} label={cfg.ki_aktiv === "ja" ? "Aktiv" : "Deaktiviert"} />
+        </KiField>
+        <KiField label="KI-Anbieter">
+          <select value={cfg.ki_anbieter} onChange={(e) => set("ki_anbieter", e.target.value)} style={KI_INPUT_STYLE}>
+            {Object.entries(meta.providers).map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+          </select>
+        </KiField>
+        <KiField label="Modell" hint="Kleinere Modelle sind günstiger und schneller, größere antworten gründlicher.">
+          <select value={cfg.ki_modell} onChange={(e) => set("ki_modell", e.target.value)} style={KI_INPUT_STYLE}>
+            {models.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </KiField>
+        <KiField label="API-Schlüssel" hint="Aus Sicherheitsgründen nur serverseitig als Umgebungsvariable ANTHROPIC_API_KEY beim Hoster hinterlegen – er wird hier nie angezeigt oder gespeichert.">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Badge color={meta.api_key_set ? C.green : C.red}>{meta.api_key_set ? "Hinterlegt" : "Nicht hinterlegt"}</Badge>
+            <button onClick={test} disabled={testing || !meta.api_key_set}
+              style={{ background: C.panelAlt, border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, padding: "7px 12px", fontSize: 12.5, cursor: testing || !meta.api_key_set ? "not-allowed" : "pointer" }}>
+              {testing ? "Teste…" : "Verbindung testen"}
+            </button>
+          </div>
+        </KiField>
+      </Panel>
+
+      <Panel style={{ padding: 18 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Team & Tickets</div>
+        <KiField label="Support-Rollen (werden bei „Teamler bitte“ benachrichtigt)" hint={roleIds.length ? null : "Leer = die Support-Rolle aus den Ticket-Einstellungen wird verwendet. Ist keine gesetzt, kann das Team nicht gerufen werden."}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            {roleIds.map((id) => (
+              <span key={id} onClick={() => set("ki_rollen", roleIds.filter((x) => x !== id).join(","))}
+                title="Klicken zum Entfernen"
+                style={{ background: `${C.gold}22`, color: C.gold, borderRadius: 99, padding: "3px 10px", fontSize: 12, cursor: "pointer" }}>
+                {roleName(id)} ✕
+              </span>
+            ))}
+          </div>
+          <RoleSelect value="" placeholder="Rolle hinzufügen…" style={{ width: "100%" }}
+            onChange={(v) => { if (v && !roleIds.includes(v)) set("ki_rollen", [...roleIds, v].join(",")); }} />
+        </KiField>
+        <KiField label="Erlaubte Ticket-Kategorien (optional, kommagetrennt)" hint="Leer = alle Tickets. Beispiel: Support, Report. Tickets ohne Kategorie werden dann ausgelassen.">
+          <input value={cfg.ki_kategorien} onChange={(e) => set("ki_kategorien", e.target.value)} placeholder="alle" style={KI_INPUT_STYLE} />
+        </KiField>
+        <KiField label="Websuche (nur Allgemeinwissen)" hint="Setzt voraus, dass Websuche in deinem Anthropic-Konto freigeschaltet ist. Internetinhalte gelten nie als offizielle Serverregeln.">
+          <Toggle checked={cfg.ki_websuche === "ja"} onChange={(v) => set("ki_websuche", v ? "ja" : "nein")} label={cfg.ki_websuche === "ja" ? "An" : "Aus"} />
+        </KiField>
+      </Panel>
+
+      <Panel style={{ padding: 18 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Kontext & Limits</div>
+        {[
+          ["ki_kontext_nachrichten", "Gesprächsverlauf (Nachrichten, 2–30)"],
+          ["ki_max_tokens", "Max. Antwortlänge (Tokens, 100–1500)"],
+          ["ki_wartezeit", "Sammelzeit für schnelle Nachrichten (Sek., 1–15)"],
+          ["ki_max_antworten_ticket", "Max. KI-Antworten pro Ticket (1–100)"],
+          ["ki_tageslimit", "Max. KI-Anfragen pro Tag und Server (10–5000)"],
+        ].map(([k, l]) => (
+          <KiField key={k} label={l}>
+            <input type="number" value={cfg[k]} onChange={(e) => set(k, e.target.value)} style={KI_INPUT_STYLE} />
+          </KiField>
+        ))}
+        <KiField label="Preis je 1 Mio. Tokens (optional, für Kostenschätzung)" hint="Aktuelle Preise stehen bei deinem Anbieter. Nur eine Schätzung auf Basis der eingetragenen Werte.">
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={cfg.ki_preis_input_mio} onChange={(e) => set("ki_preis_input_mio", e.target.value)} placeholder="Input" style={KI_INPUT_STYLE} />
+            <input value={cfg.ki_preis_output_mio} onChange={(e) => set("ki_preis_output_mio", e.target.value)} placeholder="Output" style={KI_INPUT_STYLE} />
+          </div>
+        </KiField>
+      </Panel>
+
+      <Panel style={{ padding: 18, gridColumn: "1 / -1" }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Verhalten der KI</div>
+        <KiField label="Zusätzliche Anweisungen (Ton, Stil, Besonderheiten deines Servers)" hint="Ergänzt die festen Sicherheitsregeln (nichts erfinden, keine Admin-Aktionen, keine Geheimnisse) – kann sie nicht außer Kraft setzen.">
+          <textarea value={cfg.ki_systemanweisung} onChange={(e) => set("ki_systemanweisung", e.target.value)} rows={5} maxLength={4000}
+            placeholder="z. B. Sprich die Nutzer mit „du“ an und halte dich kurz."
+            style={{ ...KI_INPUT_STYLE, resize: "vertical", fontFamily: "'Inter', sans-serif" }} />
+        </KiField>
+        <PrimaryBtn onClick={save}>{saved ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>
+      </Panel>
+    </div>
+  );
+}
+
+function KiKnowledgeTab() {
+  const { live } = useLive();
+  const { toast, confirm } = useDialog();
+  const [rows, setRows] = useState([]);
+  const [draft, setDraft] = useState({ id: null, title: "", content: "", enabled: true });
+
+  const refresh = () => apiGet("/api/ki/knowledge").then(setRows).catch(() => {});
+  useEffect(() => { if (live) refresh(); }, [live]);
+
+  if (!live) return <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Nur im Live-Modus verfügbar.</Panel>;
+
+  const save = (entry) => {
+    apiPost("/api/ki/knowledge", entry)
+      .then(() => { setDraft({ id: null, title: "", content: "", enabled: true }); refresh(); toast("Gespeichert.", "success"); })
+      .catch((err) => toast(err.message || "Speichern fehlgeschlagen.", "error"));
+  };
+  const remove = async (r) => {
+    if (!(await confirm(`Eintrag „${r.title}“ wirklich löschen?`, { danger: true, confirmLabel: "Löschen" }))) return;
+    apiDelete(`/api/ki/knowledge/${r.id}`).then(refresh).catch((err) => toast(err.message || "Löschen fehlgeschlagen.", "error"));
+  };
+  const importWissen = () => {
+    apiPost("/api/ki/knowledge/import-wissen", {})
+      .then((r) => { refresh(); toast(`${r.imported} Einträge aus wissen.py übernommen.`, "success"); })
+      .catch((err) => toast(err.message || "Import fehlgeschlagen.", "error"));
+  };
+
+  return (
+    <>
+      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 12 }}>
+        Alles, was hier steht, gilt für die KI als gesicherte Information über deinen Server (Regeln, Fraktionen, Bewerbungen, Funk, Ausweise …). Was nicht hier steht, erfindet sie nicht.
+      </div>
+      {rows.length === 0 && (
+        <Panel style={{ padding: 16, marginBottom: 14, display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: C.muted }}>Noch keine Einträge. Du kannst mit den Inhalten der bisherigen <code style={{ color: C.gold }}>wissen.py</code> starten.</span>
+          <PrimaryBtn onClick={importWissen}>Aus wissen.py übernehmen</PrimaryBtn>
+        </Panel>
+      )}
+      <Panel style={{ padding: 18, marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 12 }}>{draft.id ? "Eintrag bearbeiten" : "Neuer Eintrag"}</div>
+        <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Titel (z. B. Polizei – Voraussetzungen)" maxLength={120} style={{ ...KI_INPUT_STYLE, marginBottom: 8 }} />
+        <textarea value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} rows={5} maxLength={4000} placeholder="Inhalt – so konkret wie möglich"
+          style={{ ...KI_INPUT_STYLE, resize: "vertical", fontFamily: "'Inter', sans-serif", marginBottom: 10 }} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <PrimaryBtn onClick={() => save(draft)}>{draft.id ? "Änderung speichern" : "Hinzufügen"}</PrimaryBtn>
+          {draft.id && <button onClick={() => setDraft({ id: null, title: "", content: "", enabled: true })} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 12.5 }}>Abbrechen</button>}
+        </div>
+      </Panel>
+      <div style={{ display: "grid", gap: 10 }}>
+        {rows.map((r) => (
+          <Panel key={r.id} style={{ padding: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{r.title}</div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <Toggle checked={r.enabled} onChange={(v) => save({ ...r, enabled: v })} />
+                <IconBtn icon={Pencil} onClick={() => setDraft(r)} title="Bearbeiten" />
+                <IconBtn icon={Trash2} danger onClick={() => remove(r)} title="Löschen" />
+              </div>
+            </div>
+            <div style={{ fontSize: 12.5, color: C.muted, whiteSpace: "pre-wrap", opacity: r.enabled ? 1 : 0.5 }}>{r.content}</div>
+          </Panel>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function KiStatsTab() {
+  const { live } = useLive();
+  const [s, setS] = useState(null);
+  useEffect(() => { if (live) apiGet("/api/ki/stats").then(setS).catch(() => {}); }, [live]);
+  if (!live) return <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Nur im Live-Modus verfügbar.</Panel>;
+  if (!s) return <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Lade…</Panel>;
+  const t = s.totals_30d;
+  const fmt = (n) => (n || 0).toLocaleString("de-DE");
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
+        <StatCard icon={BotIcon} label="Anfragen heute" value={`${fmt(s.today_requests)} / ${fmt(s.daily_limit)}`} accent={C.gold} />
+        <StatCard icon={MessageSquare} label="Anfragen (30 Tage)" value={fmt(t.requests)} accent={C.cyan} />
+        <StatCard icon={Activity} label="Tokens (Ein / Aus)" value={`${fmt(t.input_tokens)} / ${fmt(t.output_tokens)}`} accent={C.green} />
+        <StatCard icon={Bell} label="Team gerufen" value={fmt(t.team_calls)} accent={C.pink} />
+        <StatCard icon={WifiOff} label="Fehler (30 Tage)" value={fmt(t.errors)} accent={C.red} />
+        <StatCard icon={Coins} label="Geschätzte Kosten" value={t.estimated_cost == null ? "– (Preise eintragen)" : t.estimated_cost.toLocaleString("de-DE", { maximumFractionDigits: 4 })} accent={C.orange} />
+      </div>
+      <Panel style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Fehlerstatus</div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+          <Badge color={s.api_key_set ? C.green : C.red}>{s.api_key_set ? "API-Schlüssel hinterlegt" : "API-Schlüssel fehlt"}</Badge>
+          {s.last_error
+            ? <span style={{ color: C.muted }}>Letzter Fehler: {s.last_error.text}{s.last_error.at ? ` (${new Date(s.last_error.at + "Z").toLocaleString("de-DE")})` : ""}</span>
+            : <span style={{ color: C.muted }}>Keine Fehler in den letzten 30 Tagen.</span>}
+        </div>
+      </Panel>
+      <Panel style={{ padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr><Th>Tag</Th><Th align="right">Anfragen</Th><Th align="right">Tokens ein</Th><Th align="right">Tokens aus</Th><Th align="right">Team</Th><Th align="right">Fehler</Th></tr></thead>
+          <tbody>
+            {s.days.length === 0 && <tr><Td style={{ color: C.muted }}>Noch keine Daten.</Td><Td /><Td /><Td /><Td /><Td /></tr>}
+            {s.days.map((d) => (
+              <tr key={d.date}>
+                <Td>{d.date}</Td><Td align="right">{fmt(d.requests)}</Td><Td align="right">{fmt(d.input_tokens)}</Td>
+                <Td align="right">{fmt(d.output_tokens)}</Td><Td align="right">{fmt(d.team_calls)}</Td><Td align="right">{fmt(d.errors)}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Panel>
+    </>
+  );
+}
+
+function KiSupportSection() {
+  const [tab, setTab] = useState("settings");
+  const tabs = [["settings", "Einstellungen"], ["knowledge", "Wissensbasis"], ["stats", "Nutzung & Status"]];
+  return (
+    <>
+      <SectionTitle eyebrow="Support" title="KI-Support" />
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {tabs.map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{
+            background: tab === k ? `${C.gold}22` : C.panelAlt, color: tab === k ? C.gold : C.muted,
+            border: `1px solid ${tab === k ? C.gold + "66" : C.border}`, borderRadius: 7, padding: "7px 14px",
+            fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>{l}</button>
+        ))}
+      </div>
+      {tab === "settings" && <KiSettingsTab />}
+      {tab === "knowledge" && <KiKnowledgeTab />}
+      {tab === "stats" && <KiStatsTab />}
+    </>
+  );
+}
+
 const SECTIONS = {
   dashboard: DashboardSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
   afk: AfkSection, team: TeamSection, meetings: MeetingsSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
-  tickets: TicketsSection, stats: StatsSection, users: UsersSection, security: SecuritySection,
+  tickets: TicketsSection, ki: KiSupportSection, stats: StatsSection, users: UsersSection, security: SecuritySection,
   bot: BotSection, module: ModuleSection, settings: SettingsSection,
 };
 
