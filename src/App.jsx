@@ -1688,7 +1688,7 @@ const SETTINGS_GROUPS = [
   { title: "Dienst-Einstellungen", fields: [["dienst_verguetung", "Vergütung pro Stunde"], ["dienst_auto_ende", "Automatischer Dienstende nach (Minuten)"]] },
   { title: "Ticket-Einstellungen", fields: [["ticket_kategorie", "Kategorie für Ticket-Kanäle", "category"], ["ticket_support_rolle", "Support-Rolle (sieht alle Tickets)", "role"]] },
   { title: "Ticket-Panel", fields: [["ticket_panel_titel", "Panel-Titel"], ["ticket_panel_text", "Panel-Beschreibungstext"], ["ticket_panel_bild_url", "Panel-Bannerbild (URL)"], ["ticket_kategorien", "Dropdown-Kategorien (kommagetrennt, z.B. Support, Bewerbung, Report)"], ["ticket_karte_grundplatte_url", "Ticket-Karte Grundplatte (Bild-URL, optional — Text wird live reingezeichnet)"]] },
-  { title: "Adventskalender", fields: [["advent_aktiv", "Adventskalender aktiv (ja/nein)"], ["advent_betrag", "Belohnung pro Türchen (₡, Standard 500)"], ["advent_sonder", "Sonderbeträge (Tag:Betrag, z.B. 6:1500,24:10000)"]] },
+  { title: "Adventskalender", fields: [["advent_betrag", "Belohnung pro Türchen (₡, Standard 500)"], ["advent_sonder", "Sonderbeträge (Tag:Betrag, z.B. 6:1500,24:10000)"]] },
   { title: "Rollen & Kanäle", fields: [["admin_rolle", "Admin-Rolle", "role"], ["ankuendigungskanal", "Ankündigungskanal", "channel"]] },
   {
     title: "Willkommen", fields: [
