@@ -5,7 +5,7 @@ import {
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
   Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone,
-  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown, Sparkles
+  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown, Sparkles, Contact
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -265,8 +265,10 @@ const NAV = [
   { key: "todo", label: "To-Do-Liste", icon: ListChecks },
   { key: "tickets", label: "Tickets", icon: Ticket },
   { key: "ki", label: "KI-Support", icon: Sparkles },
+  { key: "serverstat", label: "Serverstatistik", icon: Activity },
   { key: "stats", label: "Statistiken", icon: BarChart3 },
   { key: "users", label: "Benutzer", icon: Users },
+  { key: "ausweise", label: "Ausweise", icon: Contact },
   { key: "logs", label: "Audit Logs", icon: ScrollText },
   { key: "security", label: "Sicherheit", icon: Lock },
   { key: "bot", label: "Bot", icon: BotIcon },
@@ -2514,10 +2516,293 @@ function KiSupportSection() {
   );
 }
 
+/* ---------------------------------------------------------
+   SERVERSTATISTIK  (Daten für den Discord-Command /serverstat)
+--------------------------------------------------------- */
+function ServerstatSection() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [cfg, setCfg] = useState(null);
+  const [roblox, setRoblox] = useState(null);
+  const [geaendert, setGeaendert] = useState(null);
+  const [denied, setDenied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const load = () => apiGet("/api/serverstat")
+    .then((r) => { setCfg(r.values); setRoblox(r.roblox); setGeaendert(r.geaendert); setDenied(false); })
+    .catch((err) => {
+      if (String(err.message).includes("403")) setDenied(true);
+      else toast("Serverstatistik konnte nicht geladen werden.", "error");
+    });
+  useEffect(() => { if (live) load(); }, [live]);
+
+  if (!live) return (
+    <>
+      <SectionTitle eyebrow="Roblox" title="Serverstatistik" />
+      <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Die Serverstatistik ist nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</Panel>
+    </>
+  );
+  if (denied) return (
+    <>
+      <SectionTitle eyebrow="Roblox" title="Serverstatistik" />
+      <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Nur Admins und der Server-Owner dürfen die Serverstatistik verwalten.</Panel>
+    </>
+  );
+  if (!cfg) return (
+    <>
+      <SectionTitle eyebrow="Roblox" title="Serverstatistik" />
+      <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Lade…</Panel>
+    </>
+  );
+
+  const set = (k, v) => setCfg((c) => ({ ...c, [k]: v }));
+  const privat = cfg.serverstat_modus === "privat";
+  const fmt = (ts) => new Date(ts * 1000).toLocaleString("de-DE");
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}${withGuild("/api/serverstat")}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfg),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Speichern fehlgeschlagen (${res.status}).`);
+      setCfg(data.values); setGeaendert(data.geaendert);
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+      load();
+    } catch (err) {
+      toast(err.message || "Speichern fehlgeschlagen.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  let preview;
+  if (!roblox) {
+    preview = <div style={{ fontSize: 13, color: C.muted }}>Keine Roblox-ID hinterlegt – die Spielerzahl kann nicht automatisch abgerufen werden.</div>;
+  } else if (roblox.ok) {
+    preview = (
+      <div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: C.text }}>{roblox.playing}</div>
+        <div style={{ fontSize: 12, color: C.muted }}>Spieler im gesamten Erlebnis (alle Server)</div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>
+          Abgerufen: {fmt(roblox.fetched_at)} {roblox.stale && <Badge color={C.red}>veraltet – {roblox.error_text}</Badge>}
+        </div>
+      </div>
+    );
+  } else {
+    preview = <div style={{ fontSize: 13, color: C.red }}>Nicht verfügbar: {roblox.error_text}</div>;
+  }
+
+  return (
+    <>
+      <SectionTitle eyebrow="Roblox" title="Serverstatistik"
+        action={<PrimaryBtn onClick={save} disabled={saving}>{saving ? "Speichere…" : saved ? "Gespeichert ✓" : "Speichern"}</PrimaryBtn>} />
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 16, maxWidth: 640 }}>
+        Diese Angaben erscheinen im Discord-Command <b>/serverstat</b>. Jeder Discord-Server hat eigene, getrennte Einstellungen.
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px,1fr))", gap: 14 }}>
+        <Panel style={{ padding: 18 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Anzeige im Discord</div>
+          <KiField label="Servername" hint="Leer = Name des Discord-Servers.">
+            <input value={cfg.serverstat_name} maxLength={100} onChange={(e) => set("serverstat_name", e.target.value)} style={KI_INPUT_STYLE} />
+          </KiField>
+          <KiField label="Servereigentümer">
+            <input value={cfg.serverstat_besitzer} maxLength={100} onChange={(e) => set("serverstat_besitzer", e.target.value)} style={KI_INPUT_STYLE} />
+          </KiField>
+          <KiField label="Einladungslink" hint="Vollständige Adresse, z. B. https://discord.gg/…">
+            <input value={cfg.serverstat_einladung} maxLength={200} onChange={(e) => set("serverstat_einladung", e.target.value)} placeholder="https://" style={KI_INPUT_STYLE} />
+          </KiField>
+          <KiField label="Server Status" hint="Wird von dir gepflegt – Roblox liefert keinen Status für einzelne Server.">
+            <select value={cfg.serverstat_status} onChange={(e) => set("serverstat_status", e.target.value)} style={KI_INPUT_STYLE}>
+              <option value="">Nicht festgelegt</option>
+              <option value="ONLINE">ONLINE</option>
+              <option value="OFFLINE">OFFLINE</option>
+              <option value="PAUSIERT">PAUSIERT</option>
+            </select>
+          </KiField>
+          <KiField label="Version (manuell)" hint="Leer = „Nicht verfügbar“ im Embed.">
+            <input value={cfg.serverstat_version} maxLength={50} onChange={(e) => set("serverstat_version", e.target.value)} style={KI_INPUT_STYLE} />
+          </KiField>
+        </Panel>
+
+        <Panel style={{ padding: 18 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Roblox-Daten</div>
+          <KiField label="Art der Spielerzahl" hint={privat
+            ? "Für einzelne private Server bietet Roblox keine öffentliche Abfrage – du trägst die Zahl selbst ein."
+            : "Zeigt die Spieler aller Server des Erlebnisses, abgerufen von Roblox."}>
+            <select value={cfg.serverstat_modus || "erlebnis"} onChange={(e) => set("serverstat_modus", e.target.value)} style={KI_INPUT_STYLE}>
+              <option value="erlebnis">Gesamtes Roblox-Erlebnis (automatisch)</option>
+              <option value="privat">Einzelner privater Server (manuell)</option>
+            </select>
+          </KiField>
+          <KiField label="Roblox Place-ID" hint="Die Zahl in der Adresse roblox.com/games/<Place-ID>/…">
+            <input value={cfg.serverstat_place_id} inputMode="numeric" maxLength={20} onChange={(e) => set("serverstat_place_id", e.target.value.trim())} style={KI_INPUT_STYLE} />
+          </KiField>
+          <KiField label="Roblox Universe-ID (optional)" hint="Hat Vorrang vor der Place-ID, falls die automatische Umrechnung nicht klappt.">
+            <input value={cfg.serverstat_universe_id} inputMode="numeric" maxLength={20} onChange={(e) => set("serverstat_universe_id", e.target.value.trim())} style={KI_INPUT_STYLE} />
+          </KiField>
+          {privat && (
+            <KiField label="Spieler auf dem privaten Server (manuell)" hint="Leer = „Nicht verfügbar“ im Embed.">
+              <input value={cfg.serverstat_spieler_manuell} inputMode="numeric" maxLength={6} onChange={(e) => set("serverstat_spieler_manuell", e.target.value.trim())} style={KI_INPUT_STYLE} />
+            </KiField>
+          )}
+        </Panel>
+
+        <Panel style={{ padding: 18 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Live-Vorschau (Roblox)</div>
+          {preview}
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 12 }}>
+            Roblox-Abfragen werden 60 Sekunden zwischengespeichert.
+            {geaendert ? ` Zuletzt gespeichert: ${fmt(geaendert)}.` : ""}
+          </div>
+          <button onClick={load} style={{ marginTop: 12, background: C.panelAlt, border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, padding: "7px 12px", fontSize: 12.5, cursor: "pointer" }}>
+            Neu laden
+          </button>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+/* ---------------------------------------------------------
+   AUSWEISE  (Name, Beruf, Roblox-Nutzername – wie /ausweis im Discord)
+--------------------------------------------------------- */
+function AusweiseSection() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [items, setItems] = useState(null);
+  const [role, setRole] = useState(null);
+  const [denied, setDenied] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [addSearch, setAddSearch] = useState("");
+  const [editing, setEditing] = useState(null); // { discord_id, label, name, beruf, roblox_name }
+  const [saving, setSaving] = useState(false);
+
+  const canEdit = role === "Admin" || role === "Owner";
+  const refresh = () => {
+    apiGet("/api/ausweise").then((r) => { setItems(r); setDenied(false); })
+      .catch((err) => { if (String(err.message).includes("403")) setDenied(true); else toast("Ausweise konnten nicht geladen werden.", "error"); });
+    apiGet("/api/my-role").then((r) => setRole(r.role)).catch(() => {});
+    apiGet("/api/users").then(setAllUsers).catch(() => {});
+  };
+  useEffect(() => { if (live) refresh(); }, [live]);
+
+  const head = <SectionTitle eyebrow="Verwaltung" title="Ausweise" />;
+  if (!live) return <>{head}<Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Die Ausweise sind nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</Panel></>;
+  if (denied) return <>{head}<Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Nur das Team (Support, Moderator, Admin, Owner) darf die Ausweise sehen.</Panel></>;
+  if (!items) return <>{head}<Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>Lade…</Panel></>;
+
+  const fmt = (iso) => (iso ? new Date(iso).toLocaleString("de-DE") : "—");
+  const startEdit = (it) => setEditing({
+    discord_id: it.discord_id, label: it.member_name || it.discord_id,
+    name: it.name || "", beruf: it.beruf || "", roblox_name: it.roblox_name || "",
+  });
+  const setField = (k, v) => setEditing((e) => ({ ...e, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}${withGuild(`/api/ausweise/${editing.discord_id}`)}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editing.name, beruf: editing.beruf, roblox_name: editing.roblox_name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Speichern fehlgeschlagen (${res.status}).`);
+      toast("Ausweis gespeichert.", "success");
+      setEditing(null); refresh();
+    } catch (err) {
+      toast(err.message || "Speichern fehlgeschlagen.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const q = search.trim().toLowerCase();
+  const shown = items.filter((i) => !q || [i.name, i.beruf, i.roblox_name, i.member_name].some((v) => (v || "").toLowerCase().includes(q)));
+  const haveIds = new Set(items.map((i) => i.discord_id));
+  const addResults = addSearch.trim()
+    ? allUsers.filter((u) => (u.name || "").toLowerCase().includes(addSearch.trim().toLowerCase())).slice(0, 8) : [];
+  const idOf = (u) => String(u.id).includes(":") ? String(u.id).split(":")[1] : String(u.id);
+
+  return (
+    <>
+      <SectionTitle eyebrow="Verwaltung" title="Ausweise" />
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 14, maxWidth: 640 }}>
+        Jeder Ausweis hat Name, Beruf und Roblox-Nutzername. Mitglieder pflegen ihren eigenen mit <b>/ausweis bearbeiten</b>.
+        {canEdit ? " Als Admin kannst du hier alle Ausweise bearbeiten." : " Bearbeiten dürfen hier nur Admins und der Server-Owner."}
+      </div>
+
+      {editing && (
+        <Panel style={{ padding: 18, marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Ausweis bearbeiten – {editing.label}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 12 }}>
+            <KiField label="Name"><input value={editing.name} maxLength={60} onChange={(e) => setField("name", e.target.value)} style={KI_INPUT_STYLE} /></KiField>
+            <KiField label="Beruf"><input value={editing.beruf} maxLength={60} onChange={(e) => setField("beruf", e.target.value)} style={KI_INPUT_STYLE} /></KiField>
+            <KiField label="Roblox-Nutzername" hint="3–20 Zeichen: Buchstaben, Ziffern, Unterstrich.">
+              <input value={editing.roblox_name} maxLength={21} onChange={(e) => setField("roblox_name", e.target.value)} style={KI_INPUT_STYLE} />
+            </KiField>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <PrimaryBtn onClick={save} disabled={saving}>{saving ? "Speichere…" : "Speichern"}</PrimaryBtn>
+            <button onClick={() => setEditing(null)} style={{ background: C.panelAlt, border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>Abbrechen</button>
+          </div>
+        </Panel>
+      )}
+
+      {canEdit && (
+        <Panel style={{ padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>Ausweis für ein Mitglied anlegen oder bearbeiten</div>
+          <input value={addSearch} onChange={(e) => setAddSearch(e.target.value)} placeholder="Mitglied suchen…" style={KI_INPUT_STYLE} />
+          {addResults.map((u) => {
+            const id = idOf(u); const existing = items.find((i) => i.discord_id === id);
+            return (
+              <div key={u.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 4px", borderBottom: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: 13, color: C.text }}>{u.name} {haveIds.has(id) && <Badge color={C.green}>hat Ausweis</Badge>}</span>
+                <button onClick={() => { setEditing({ discord_id: id, label: u.name, name: existing?.name || "", beruf: existing?.beruf || "", roblox_name: existing?.roblox_name || "" }); setAddSearch(""); }}
+                  style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 5, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer" }}>
+                  {existing ? "Bearbeiten" : "Anlegen"}
+                </button>
+              </div>
+            );
+          })}
+          {addSearch.trim() && addResults.length === 0 && <div style={{ fontSize: 12.5, color: C.muted, padding: "6px 4px" }}>Keine passenden Mitglieder gefunden.</div>}
+        </Panel>
+      )}
+
+      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="In Ausweisen suchen (Name, Beruf, Roblox)…"
+        style={{ ...KI_INPUT_STYLE, marginBottom: 12, maxWidth: 420 }} />
+      <Panel style={{ padding: 0, overflowX: "auto" }}>
+        {shown.length === 0 ? (
+          <div style={{ padding: 18, fontSize: 13, color: C.muted }}>{items.length === 0 ? "Noch keine Ausweise ausgefüllt." : "Keine Treffer."}</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+            <thead><tr><Th>Mitglied</Th><Th>Name</Th><Th>Beruf</Th><Th>Roblox-Nutzername</Th><Th>Zuletzt geändert</Th>{canEdit && <Th align="right">Aktion</Th>}</tr></thead>
+            <tbody>
+              {shown.map((it) => (
+                <tr key={it.id}>
+                  <Td>{it.member_name || <span style={{ color: C.muted }}>{it.discord_id}</span>}</Td>
+                  <Td>{it.name || "—"}</Td>
+                  <Td>{it.beruf || "—"}</Td>
+                  <Td>{it.roblox_name || "—"}</Td>
+                  <Td style={{ color: C.muted, fontSize: 12.5 }}>{fmt(it.updated_at)}</Td>
+                  {canEdit && <Td align="right"><IconBtn icon={Pencil} title="Bearbeiten" onClick={() => startEdit(it)} /></Td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </>
+  );
+}
+
 const SECTIONS = {
   dashboard: DashboardSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
   afk: AfkSection, team: TeamSection, meetings: MeetingsSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
-  tickets: TicketsSection, ki: KiSupportSection, stats: StatsSection, users: UsersSection, security: SecuritySection,
+  tickets: TicketsSection, ki: KiSupportSection, serverstat: ServerstatSection, stats: StatsSection, users: UsersSection, ausweise: AusweiseSection, security: SecuritySection,
   bot: BotSection, module: ModuleSection, settings: SettingsSection,
 };
 
