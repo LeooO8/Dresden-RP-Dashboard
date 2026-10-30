@@ -5,7 +5,8 @@ import {
   Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
   Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone,
-  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown, Sparkles, Contact
+  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown, Sparkles, Contact,
+  User, Headphones, Shield, Crown, ArrowRight, Info, Database, ExternalLink
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -497,12 +498,17 @@ function Toggle({ checked, onChange, label }) {
 --------------------------------------------------------- */
 function Ticker({ overview }) {
   const { live, user, myGuilds } = useLive();
+  const [pub, setPub] = useState(null);
+  useEffect(() => { if (!overview) apiGet("/api/public-status").then(setPub).catch(() => {}); }, [overview]);
+  const connected = live || !!user;   // angemeldet = Backend erreichbar, auch wenn noch kein Server gewählt ist
+  const botStatus = (overview?.bot_status || pub?.bot_status || "").toUpperCase();
+  const uptime = overview ? overview.uptime_seconds : pub?.uptime_seconds;
   const items = [
-    { label: "BOT-STATUS", value: overview ? overview.bot_status?.toUpperCase() : "ONLINE", color: C.green },
-    { label: "MITGLIEDER", value: overview ? overview.member_count.toLocaleString("de-DE") : "0", color: C.text },
-    { label: "IM DIENST", value: overview ? overview.on_duty : "0", color: C.cyan },
-    { label: "GESAMTGUTHABEN", value: fmtMoney(overview ? overview.total_balance : 0), color: C.gold },
-    { label: "UPTIME", value: overview ? formatUptime(overview.uptime_seconds) : "0T 0H 0M", color: C.text },
+    { label: "BOT-STATUS", value: botStatus || "—", color: botStatus === "ONLINE" ? C.green : C.muted },
+    { label: "MITGLIEDER", value: overview ? overview.member_count.toLocaleString("de-DE") : "—", color: C.text },
+    { label: "IM DIENST", value: overview ? overview.on_duty : "—", color: C.cyan },
+    { label: "GESAMTGUTHABEN", value: overview ? fmtMoney(overview.total_balance) : "—", color: C.gold },
+    { label: "UPTIME", value: uptime != null ? formatUptime(uptime) : "—", color: C.text },
   ];
   return (
     <div style={{
@@ -522,14 +528,14 @@ function Ticker({ overview }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
         <span style={{
           display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, letterSpacing: 0.5,
-          color: live ? C.green : C.muted, border: `1px solid ${live ? C.green : C.border}`,
+          color: connected ? C.green : C.muted, border: `1px solid ${connected ? C.green : C.border}`,
           borderRadius: 5, padding: "3px 8px",
         }}>
-          {live ? <Wifi size={11} style={{ animation: "livePulse 2s ease-in-out infinite" }} /> : <WifiOff size={11} />}
-          {live ? "LIVE VERBUNDEN" : "DEMO-DATEN"}
+          {connected ? <Wifi size={11} style={{ animation: "livePulse 2s ease-in-out infinite" }} /> : <WifiOff size={11} />}
+          {connected ? "LIVE VERBUNDEN" : "DEMO-DATEN"}
         </span>
         <style>{`@keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }`}</style>
-        {live && user ? (
+        {user ? (
           <>
             <span style={{ fontSize: 11.5, color: C.text }}>{user.username}</span>
             <button
@@ -2809,33 +2815,223 @@ const SECTIONS = {
 /* ---------------------------------------------------------
    APP
 --------------------------------------------------------- */
-function GuildSelector({ guilds }) {
+/* ---------------------------------------------------------
+   ANMELDESEITE + SERVERAUSWAHL (neues Design)
+--------------------------------------------------------- */
+const ROLE_LABEL = { Mitglied: "Bewohner", Support: "Supporter", Moderator: "Moderator", Admin: "Admin", Owner: "Owner" };
+const ROLE_ICON = { Mitglied: User, Support: Headphones, Moderator: Shield, Admin: Crown, Owner: Crown };
+
+function DiscordLogo({ size = 28, color = "#fff" }) {
   return (
-    <>
-      <SectionTitle eyebrow="Mehrserver-Unterstützung" title="Server auswählen" />
-      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, maxWidth: 560 }}>
-        Der Bot läuft auf mehreren Servern. Wähle, für welchen Server du gerade das Dashboard sehen und verwalten möchtest —
-        jeder Server hat seine eigenen, komplett getrennten Daten.
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+    </svg>
+  );
+}
+
+/* Wappen: Schild mit Kirche (eigene SVG-Grafik, kein Bildmaterial nötig) */
+function CrestLogo({ size = 40, glow = false }) {
+  return (
+    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" aria-hidden="true" style={glow ? { filter: `drop-shadow(0 0 14px ${C.gold}99)` } : undefined}>
+      <defs>
+        <linearGradient id="crestFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={C.gold} stopOpacity="0.28" /><stop offset="1" stopColor={C.gold} stopOpacity="0.06" />
+        </linearGradient>
+      </defs>
+      <path d="M50 4 L92 18 V58 C92 84 72 102 50 111 C28 102 8 84 8 58 V18 Z" fill="url(#crestFill)" stroke={C.gold} strokeWidth="3" strokeLinejoin="round" />
+      <g fill={C.gold} opacity="0.95">
+        <path d="M50 24 l3 10 h-6 z" /><rect x="49.2" y="14" width="1.6" height="12" />
+        <path d="M34 40 l4 14 h-8 z" /><path d="M66 40 l4 14 h-8 z" />
+        <path d="M38 62 C38 48 62 48 62 62 V86 H38 Z" />
+        <rect x="28" y="56" width="10" height="30" /><rect x="62" y="56" width="10" height="30" />
+        <path d="M44 86 V72 a6 6 0 0 1 12 0 V86 Z" fill="#14101f" />
+      </g>
+    </svg>
+  );
+}
+
+function Skyline({ style }) {
+  return (
+    <svg viewBox="0 0 1200 260" preserveAspectRatio="xMidYMax slice" aria-hidden="true" style={style}>
+      <defs>
+        <linearGradient id="skyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2a1f4d" /><stop offset="1" stopColor="#120e1f" /></linearGradient>
+      </defs>
+      <g fill="url(#skyFill)" opacity="0.9">
+        <rect x="0" y="190" width="1200" height="70" />
+        <rect x="40" y="150" width="46" height="110" /><path d="M40 150 l23 -26 l23 26 z" />
+        <rect x="110" y="170" width="60" height="90" />
+        <rect x="190" y="140" width="34" height="120" /><path d="M190 140 l17 -50 l17 50 z" />
+        <rect x="250" y="165" width="70" height="95" />
+        <path d="M360 260 V150 C360 90 480 90 480 150 V260 Z" /><rect x="418" y="52" width="4" height="40" /><circle cx="420" cy="50" r="5" />
+        <rect x="340" y="140" width="22" height="120" /><path d="M340 140 l11 -40 l11 40 z" />
+        <rect x="478" y="140" width="22" height="120" /><path d="M478 140 l11 -40 l11 40 z" />
+        <rect x="520" y="175" width="80" height="85" />
+        <rect x="640" y="120" width="30" height="140" /><path d="M640 120 l15 -60 l15 60 z" />
+        <rect x="690" y="160" width="90" height="100" />
+        <rect x="800" y="135" width="26" height="125" /><path d="M800 135 l13 -44 l13 44 z" />
+        <rect x="846" y="170" width="70" height="90" />
+        <path d="M940 260 V160 C940 120 1010 120 1010 160 V260 Z" />
+        <rect x="1030" y="150" width="40" height="110" /><path d="M1030 150 l20 -30 l20 30 z" />
+        <rect x="1090" y="175" width="80" height="85" />
+      </g>
+      <g fill="#fbbf24" opacity="0.55">
+        {[[52,170],[64,190],[122,190],[200,170],[262,185],[300,200],[532,195],[704,185],[740,205],[858,190],[1042,175],[1104,195]].map(([x, y], i) => <rect key={i} x={x} y={y} width="3" height="4" />)}
+      </g>
+    </svg>
+  );
+}
+
+function LoginScreen() {
+  const [pub, setPub] = useState(null);
+  useEffect(() => { apiGet("/api/public-status").then(setPub).catch(() => {}); }, []);
+  const online = pub?.bot_status === "online";
+  const mono = { fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1.2 };
+  return (
+    <div style={{ minHeight: "100vh", background: `radial-gradient(900px circle at 22% 45%, #2b1f55 0%, transparent 60%), radial-gradient(700px circle at 85% 20%, #1d1640 0%, transparent 55%), ${C.bg}`, color: C.text, position: "relative", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        .login-grid { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(320px,460px); gap: 48px; align-items: center; padding: 70px 6vw 120px; position: relative; z-index: 2; }
+        .login-btn { transition: transform .15s, box-shadow .15s, filter .15s; }
+        .login-btn:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 10px 30px -8px ${C.gold}aa; }
+        @media (max-width: 900px) { .login-grid { grid-template-columns: 1fr; padding-top: 40px; } .login-hero { display: none; } }
+      `}</style>
+      <Skyline style={{ position: "absolute", left: 0, right: 0, bottom: 0, width: "100%", height: "46%", opacity: 0.55, zIndex: 1 }} />
+
+      <div style={{ position: "relative", zIndex: 3, margin: "18px 24px 0", display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap", background: `${C.panel}cc`, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 20px", ...mono, fontSize: 12 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: online ? C.green : C.muted, boxShadow: online ? `0 0 8px ${C.green}` : "none" }} />
+          <span style={{ color: C.muted }}>BOT-STATUS</span>
+          <b style={{ color: online ? C.green : C.muted }}>{pub ? (online ? "ONLINE" : "OFFLINE") : "—"}</b>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Clock size={14} color={C.muted} /><span style={{ color: C.muted }}>UPTIME</span>
+          <b>{pub ? formatUptime(pub.uptime_seconds) : "—"}</b>
+        </span>
       </div>
-      {guilds.length === 0 ? (
-        <Panel style={{ padding: 18 }}>
-          <div style={{ fontSize: 13, color: C.muted }}>
-            Der Bot ist auf keinem gemeinsamen Server mit deinem Discord-Konto zu finden.
-          </div>
-        </Panel>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 14 }}>
-          {guilds.map((g) => (
-            <Panel key={g.id} style={{ padding: 18, cursor: "pointer" }} onClick={() => selectGuild(g.id)}>
-              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 10 }}>
-                {g.name}
-              </div>
-              <PrimaryBtn onClick={() => selectGuild(g.id)}>Auswählen</PrimaryBtn>
-            </Panel>
+
+      <div className="login-grid">
+        <div className="login-hero">
+          <div style={{ ...mono, fontSize: 22, color: "#cfc8ea", fontWeight: 600 }}>DRESDEN RP</div>
+          <div style={{ ...mono, fontSize: 11.5, color: C.muted, marginTop: 6 }}>MEHR ALS NUR EIN SERVER</div>
+          <div style={{ width: 34, height: 3, background: C.gold, margin: "22px 0 18px", borderRadius: 2 }} />
+          {["GEMEINSCHAFT", "ROLEPLAY", "WIRTSCHAFT", "SICHERHEIT", "PERSPEKTIVE"].map((t) => (
+            <div key={t} style={{ ...mono, fontSize: 12, color: "#6f6a88", marginBottom: 10 }}>{t}</div>
           ))}
+          <div style={{ marginTop: 36, display: "flex", justifyContent: "center" }}><CrestLogo size={150} glow /></div>
         </div>
-      )}
-    </>
+
+        <div style={{ background: `linear-gradient(160deg, ${C.panelAlt}f2, ${C.panel}f2)`, border: `1px solid ${C.gold}55`, borderRadius: 20, padding: "34px 32px 30px", boxShadow: `0 30px 80px -30px ${C.gold}55`, position: "relative", textAlign: "center" }}>
+          <span style={{ position: "absolute", top: 18, right: 18, display: "flex", alignItems: "center", gap: 7, ...mono, fontSize: 10, color: C.muted, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 9px" }}>
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: C.green }} />SICHER &amp; OFFIZIELL
+          </span>
+          <div style={{ width: 104, height: 104, borderRadius: 99, margin: "26px auto 24px", background: `radial-gradient(circle, ${C.gold} 0%, #5b3fd0 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 14px ${C.gold}1f, 0 0 50px ${C.gold}55` }}>
+            <DiscordLogo size={52} />
+          </div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 32, lineHeight: 1.15 }}>Willkommen bei</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 38, color: C.gold, lineHeight: 1.15, marginBottom: 14 }}>Dresden RP</div>
+          <div style={{ fontSize: 14.5, color: C.muted, marginBottom: 26 }}>Melde dich an, um dein Server-Dashboard zu öffnen.</div>
+          <a className="login-btn" href={`${API_BASE}/auth/login`} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, background: `linear-gradient(90deg, #7c5cff, #5b3fd0)`, color: "#fff", textDecoration: "none", borderRadius: 10, padding: "17px 20px", fontWeight: 600, fontSize: 17 }}>
+            <DiscordLogo size={22} /> Mit Discord anmelden <ArrowRight size={18} />
+          </a>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "26px 0 14px", color: C.muted }}>
+            <div style={{ flex: 1, height: 1, background: C.border }} /><Shield size={16} /><div style={{ flex: 1, height: 1, background: C.border }} />
+          </div>
+          <div style={{ fontSize: 13.5, color: C.muted, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <Info size={15} /> Deine Rolle bestimmt deine Bereiche.
+          </div>
+        </div>
+      </div>
+
+      <div style={{ position: "absolute", left: "6vw", right: "6vw", bottom: 22, zIndex: 3, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, ...mono, fontSize: 10.5, color: "#6f6a88" }}>
+        <span style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>DRESDEN RP<br />REALITÄT ERLEBEN. GEMEINSAM GESTALTEN.</span>
+        <span style={{ alignSelf: "flex-end" }}>ROLEPLAY COMMUNITY &nbsp;|&nbsp; DEUTSCHER SERVER &nbsp;|&nbsp; LANGFRISTIG. ECHT. FÜR EUCH.</span>
+      </div>
+    </div>
+  );
+}
+
+function ServerSelectScreen({ guilds, overview, user }) {
+  const roles = [...new Set(guilds.map((g) => g.my_role || "Mitglied"))];
+  const mono = { fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1.2 };
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif", position: "relative" }}>
+      <style>{`
+        .srv-layout { display: flex; position: relative; z-index: 2; }
+        .srv-side { width: 232px; flex-shrink: 0; border-right: 1px solid ${C.border}; min-height: calc(100vh - 41px); padding: 20px 12px; position: relative; }
+        .srv-main { flex: 1; min-width: 0; padding: 40px 48px 120px; display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 32px; align-items: start; }
+        .srv-card { transition: transform .15s, border-color .15s, box-shadow .15s; }
+        .srv-card:hover { transform: translateY(-2px); box-shadow: 0 18px 40px -22px ${C.gold}; }
+        @media (max-width: 1000px) { .srv-main { grid-template-columns: 1fr; padding: 24px 18px 90px; } }
+        @media (max-width: 760px) { .srv-layout { flex-direction: column; } .srv-side { width: 100%; min-height: auto; } }
+      `}</style>
+      <Skyline style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", height: "34%", opacity: 0.22, zIndex: 0, pointerEvents: "none" }} />
+      <Ticker overview={overview} />
+      <div className="srv-layout">
+        <div className="srv-side">
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px", marginBottom: 26 }}>
+            <CrestLogo size={30} />
+            <div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15, letterSpacing: 0.4 }}>DRESDEN RP</div>
+              <div style={{ fontSize: 9.5, color: C.gold, ...mono }}>DAS RP-ERLEBNIS</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: 9, background: `${C.gold}22`, border: `1px solid ${C.gold}66`, color: C.gold, fontWeight: 600, fontSize: 14 }}>
+            <Database size={17} /> Meine Server <ChevronRight size={14} style={{ marginLeft: "auto" }} />
+          </div>
+          <div style={{ position: "absolute", left: 20, bottom: 24, ...mono, fontSize: 10, color: "#6f6a88", lineHeight: 1.7 }}>GEMEINSAM<br />MEHR ERLEBEN <span style={{ display: "inline-block", width: 36, height: 1, background: C.gold, verticalAlign: "middle", marginLeft: 6 }} /></div>
+        </div>
+
+        <div className="srv-main">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, ...mono, fontSize: 11.5, color: C.gold, marginBottom: 14 }}>
+              <span style={{ width: 28, height: 1, background: C.gold }} />DISCORD SERVER
+            </div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: "clamp(32px, 4.4vw, 56px)", lineHeight: 1.1 }}>
+              Wähle deinen <span style={{ color: C.gold }}>Server</span>
+            </div>
+            <div style={{ fontSize: 16, color: C.muted, margin: "14px 0 32px" }}>Verwalte die Discord-Server, auf denen der Bot läuft und du Mitglied bist.</div>
+
+            {guilds.length === 0 ? (
+              <Panel style={{ padding: 22, fontSize: 14, color: C.muted }}>Der Bot ist auf keinem gemeinsamen Server mit deinem Discord-Konto zu finden.</Panel>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 18 }}>
+                {guilds.map((g, idx) => (
+                  <div key={g.id} className="srv-card" style={{ background: `linear-gradient(170deg, ${C.panelAlt}, ${C.panel})`, border: `1px solid ${idx === 0 ? C.gold : C.border}`, borderRadius: 16, padding: 24 }}>
+                    <div style={{ width: 88, height: 88, borderRadius: 99, border: `3px solid ${C.gold}`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: "#0d0b14", marginBottom: 16, boxShadow: `0 0 28px ${C.gold}44` }}>
+                      {g.icon_url ? <img src={g.icon_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontFamily: "'Fraunces', serif", fontSize: 32, fontWeight: 700, color: C.gold }}>{(g.name || "?").slice(0, 1).toUpperCase()}</span>}
+                    </div>
+                    <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 24, marginBottom: 10 }}>{g.name}</div>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: C.green, border: `1px solid ${C.green}88`, background: `${C.green}14`, borderRadius: 99, padding: "5px 14px", fontSize: 13.5, marginBottom: 18 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: C.green }} />Verbunden
+                    </span>
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, display: "grid", gap: 10, color: C.text, fontSize: 14.5, marginBottom: 18 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 10 }}><Users size={17} color={C.muted} />{g.member_count?.toLocaleString("de-DE") ?? "—"} Mitglieder</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 10 }}><Shield size={17} color={C.muted} />{g.role_count?.toLocaleString("de-DE") ?? "—"} Rollen</span>
+                    </div>
+                    <button onClick={() => selectGuild(g.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, justifyContent: "center", background: `linear-gradient(90deg, #7c5cff, #5b3fd0)`, border: "none", color: "#fff", borderRadius: 9, padding: "13px 14px", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
+                      <ExternalLink size={16} /> Dashboard öffnen <ChevronRight size={16} style={{ marginLeft: "auto" }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: `linear-gradient(170deg, ${C.panelAlt}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20, marginBottom: 12 }}><Shield size={22} color={C.gold} />Deine Berechtigung</div>
+            <div style={{ fontSize: 14, color: C.muted, marginBottom: 16 }}>Das sind deine Rollen auf {guilds.length === 1 ? "diesem Server" : "deinen Servern"}{user?.username ? ` (${user.username})` : ""}.</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {roles.map((r) => { const I = ROLE_ICON[r] || User; return (
+                <span key={r} style={{ display: "inline-flex", alignItems: "center", gap: 10, color: C.gold, border: `1px solid ${C.gold}66`, background: `${C.gold}18`, borderRadius: 99, padding: "8px 16px", fontWeight: 600, width: "fit-content" }}>
+                  <I size={18} />{ROLE_LABEL[r] || r}
+                </span>); })}
+            </div>
+            <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, paddingTop: 16, fontSize: 12.5, color: C.muted, display: "flex", gap: 10 }}>
+              <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />Angezeigt werden Server, auf denen der Bot läuft und du Mitglied bist.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2846,6 +3042,8 @@ export default function DiscordBotDashboard() {
   const [overview, setOverview] = useState(null);
   const [myGuilds, setMyGuilds] = useState(null); // null = noch nicht geladen
   const [guildInfo, setGuildInfo] = useState(null);
+  const [authState, setAuthState] = useState("loading"); // loading | in | out | offline
+  const demo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
   const Active = SECTIONS[active];
 
   useEffect(() => {
@@ -2874,14 +3072,34 @@ export default function DiscordBotDashboard() {
       .then((u) => {
         if (cancelled) return;
         setUser(u);
+        setAuthState("in");
         apiGet("/api/my-guilds").then((gs) => !cancelled && setMyGuilds(gs)).catch(() => !cancelled && setMyGuilds([]));
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (cancelled) return;
+        // 401 = Backend erreichbar, aber nicht angemeldet -> Anmeldeseite. Alles andere = Backend nicht erreichbar (Demo-Ansicht wie bisher).
+        setAuthState(String(err?.message || "").includes("401") ? "out" : "offline");
+      });
     return () => { cancelled = true; };
   }, []);
 
   const needsGuildSelection = user && myGuilds && myGuilds.length > 0 &&
     !myGuilds.some((g) => g.id === GuildState.id);
+
+  const fullBg = { background: C.bg, minHeight: "100vh" };
+  const fontsCss = `@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap'); * { box-sizing: border-box; } html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100%; background: ${C.bg}; }`;
+  if (!demo && authState === "loading") return <div style={fullBg}><style>{fontsCss}</style></div>;
+  if (!demo && authState === "out") return <><style>{fontsCss}</style><LoginScreen /></>;
+  if (needsGuildSelection) {
+    return (
+      <DialogProvider>
+        <LiveContext.Provider value={{ live, user, myGuilds }}>
+          <style>{fontsCss}</style>
+          <ServerSelectScreen guilds={myGuilds} overview={null} user={user} />
+        </LiveContext.Provider>
+      </DialogProvider>
+    );
+  }
 
   return (
     <DialogProvider>
@@ -2973,7 +3191,7 @@ export default function DiscordBotDashboard() {
         {/* Main */}
         <div className="app-main">
           <div key={active} className="section-fade">
-            {needsGuildSelection ? <GuildSelector guilds={myGuilds} /> : <Active />}
+            <Active />
           </div>
         </div>
       </div>
