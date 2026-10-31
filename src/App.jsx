@@ -256,6 +256,8 @@ const LOG_META = {
 
 const NAV = [
   { key: "dashboard", label: "Übersicht", icon: LayoutDashboard },
+  { key: "teamconsole", label: "Team-Konsole", icon: Headphones },
+  { key: "kennzahlen", label: "Kennzahlen", icon: BarChart3 },
   { key: "bank", label: "Bank-System", icon: Landmark },
   { key: "shop", label: "Shop-System", icon: ShoppingBag },
   { key: "dienst", label: "Dienstsystem", icon: ShieldHalf },
@@ -276,6 +278,24 @@ const NAV = [
   { key: "module", label: "Module", icon: LayoutGrid },
   { key: "settings", label: "Einstellungen", icon: Settings },
 ];
+
+// Bewohner sehen nur ihre eigenen Bereiche, das Team (Support/Moderator) die Team-Werkzeuge, Admin/Owner alles.
+const NAV_BEWOHNER = [
+  { key: "resident", label: "Übersicht", icon: LayoutDashboard },
+  { key: "afk", label: "AFK-System", icon: Moon },
+  { key: "mytickets", label: "Meine Tickets", icon: Ticket },
+  { key: "myausweis", label: "Mein Ausweis", icon: Contact },
+];
+const NAV_TEAM = [
+  { key: "teamconsole", label: "Team-Übersicht", icon: LayoutDashboard },
+  { key: "tickets", label: "Support-Tickets", icon: Ticket },
+  { key: "ausweise", label: "Ausweise", icon: Contact },
+  { key: "todo", label: "To-Do-Liste", icon: ListChecks },
+  { key: "logs", label: "Audit Logs", icon: ScrollText },
+  { key: "afk", label: "AFK-System", icon: Moon },
+  { key: "myausweis", label: "Mein Ausweis", icon: Contact },
+];
+const navForRole = (role) => (roleRank(role) >= 3 ? NAV : roleRank(role) >= 1 ? NAV_TEAM : NAV_BEWOHNER);
 
 /* ---------------------------------------------------------
    PRIMITIVES
@@ -497,7 +517,7 @@ function Toggle({ checked, onChange, label }) {
    HUD TICKER (signature element)
 --------------------------------------------------------- */
 function Ticker({ overview }) {
-  const { live, user, myGuilds } = useLive();
+  const { live, user, myGuilds, role } = useLive();
   const [pub, setPub] = useState(null);
   useEffect(() => { if (!overview) apiGet("/api/public-status").then(setPub).catch(() => {}); }, [overview]);
   const connected = live || !!user;   // angemeldet = Backend erreichbar, auch wenn noch kein Server gewählt ist
@@ -538,6 +558,7 @@ function Ticker({ overview }) {
         {user ? (
           <>
             <span style={{ fontSize: 11.5, color: C.text }}>{user.username}</span>
+            {role && <span style={{ fontSize: 10.5, color: C.gold, border: `1px solid ${C.gold}66`, borderRadius: 5, padding: "2px 7px" }}>{ROLE_LABEL[role] || role}</span>}
             <button
               onClick={() => {
                 apiPost("/auth/logout", {}).finally(() => window.location.reload());
@@ -2805,8 +2826,412 @@ function AusweiseSection() {
   );
 }
 
+/* ---------------------------------------------------------
+   STARTSEITEN JE ROLLE: Übersicht (Admin), Team-Konsole, Bewohner-Übersicht, Meine Tickets, Mein Ausweis
+--------------------------------------------------------- */
+const roleRank = (r) => ({ Mitglied: 0, Member: 0, Support: 1, Moderator: 2, Admin: 3, Owner: 4 }[r] ?? 0);
+const goTo = (key) => window.dispatchEvent(new CustomEvent("dashboard-nav", { detail: key }));
+const monoFont = { fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1 };
+const serifFont = { fontFamily: "'Fraunces', serif" };
+
+function agoText(iso) {
+  if (!iso) return "—";
+  const s = Math.max(0, (Date.now() - new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z").getTime()) / 1000);
+  if (s < 60) return "gerade eben";
+  if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`;
+  if (s < 86400) return `vor ${Math.floor(s / 3600)} Std.`;
+  return `vor ${Math.floor(s / 86400)} Tagen`;
+}
+
+function useApiData(path) {
+  const { live } = useLive();
+  const [state, setState] = useState({ data: null, error: null });
+  const load = () => apiGet(path).then((data) => setState({ data, error: null })).catch((e) => setState({ data: null, error: String(e.message || e) }));
+  useEffect(() => { if (live) load(); }, [live]);
+  return [state.data, state.error, load];
+}
+
+function HomeMessage({ eyebrow, title, children }) {
+  return (
+    <>
+      <SectionTitle eyebrow={eyebrow} title={title} />
+      <Panel style={{ padding: 18, color: C.muted, fontSize: 13 }}>{children}</Panel>
+    </>
+  );
+}
+
+function HomeStat({ icon: Icon, label, value, sub, accent = C.gold }) {
+  return (
+    <Panel hover style={{ padding: 18, flex: 1, minWidth: 170 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, background: `${accent}1F`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={21} color={accent} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: C.muted }}>{label}</div>
+          <div style={{ ...serifFont, fontSize: 26, fontWeight: 700, color: accent === C.gold ? C.text : accent, lineHeight: 1.15 }}>{value}</div>
+        </div>
+      </div>
+      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>{sub}</div>}
+    </Panel>
+  );
+}
+
+function RoleBadge({ role }) {
+  const I = ROLE_ICON[role] || User;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, ...monoFont, fontSize: 12, fontWeight: 600, color: C.gold, border: `1px solid ${C.gold}88`, background: `${C.gold}1A`, borderRadius: 8, padding: "7px 14px" }}>
+      <I size={15} />{(ROLE_LABEL[role] || role).toUpperCase()}
+    </span>
+  );
+}
+
+function LinkRow({ icon: Icon, title, text, onClick }) {
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer", color: C.text }}>
+      <span style={{ width: 42, height: 42, borderRadius: 10, background: `${C.gold}1F`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={19} color={C.gold} /></span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontWeight: 600, fontSize: 14.5 }}>{title}</span>
+        <span style={{ display: "block", fontSize: 12.5, color: C.muted }}>{text}</span>
+      </span>
+      <ChevronRight size={16} color={C.muted} />
+    </button>
+  );
+}
+
+function ActivityList({ items }) {
+  if (!items || items.length === 0) return <div style={{ fontSize: 13, color: C.muted, padding: "6px 2px" }}>Noch keine Aktivitäten.</div>;
+  return (
+    <div>
+      {items.map((it, i) => (
+        <div key={it.id ?? i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 4px", borderBottom: i === items.length - 1 ? "none" : `1px solid ${C.border}` }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: C.gold, flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 13.5, minWidth: 0, wordBreak: "break-word" }}>{it.text}</span>
+          <span style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap" }}>{agoText(it.time)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------------- Übersicht "Server ist verbunden" (Admin / Owner) ---------------- */
+const MODULE_INFO = {
+  bank: [Landmark, "Wirtschaft, Konten und Überweisungen"],
+  shop: [ShoppingBag, "Items, Fahrzeuge und Dienstleistungen"],
+  dienst: [ShieldHalf, "Fraktionen und Dienstzeiten"],
+  afk: [Moon, "Inaktivität automatisch erkennen"],
+  giveaways: [Gift, "Gewinnspiele erstellen und verwalten"],
+  tickets: [Ticket, "Support-Anfragen bearbeiten"],
+  advent: [CalendarDays, "Täglich ein Türchen im Dezember"],
+  serverstat: [Activity, "Status und Spieler des Roblox-Servers"],
+};
+
+function ConnectedOverview() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [st, stErr] = useApiData("/api/server/status");
+  const [team] = useApiData("/api/team/dashboard");
+  if (!live) return <HomeMessage eyebrow="Übersicht" title="Übersicht">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (stErr) return <HomeMessage eyebrow="Übersicht" title="Übersicht">Die Serverübersicht konnte nicht geladen werden ({stErr.includes("403") ? "dafür fehlt dir die Berechtigung" : "Server oder Bot nicht erreichbar"}).</HomeMessage>;
+  if (!st) return <HomeMessage eyebrow="Übersicht" title="Übersicht">Lade…</HomeMessage>;
+  const online = st.bot_status === "online";
+  const sync = () => apiPostQuery("/api/bot/sync", {}).then(() => toast("Befehle werden synchronisiert.", "success")).catch((e) => toast(e.message || "Synchronisierung fehlgeschlagen.", "error"));
+  const Pill = ({ children }) => <span style={{ display: "inline-flex", alignItems: "center", gap: 8, ...monoFont, fontSize: 11.5, color: C.green, border: `1px solid ${C.green}88`, background: `${C.green}14`, borderRadius: 99, padding: "6px 14px" }}><span style={{ width: 7, height: 7, borderRadius: 99, background: C.green }} />{children}</span>;
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <Panel style={{ padding: 26, border: `1px solid ${C.gold}66`, gridColumn: "span 2", minWidth: 0 }}>
+          <div style={{ ...monoFont, fontSize: 11.5, color: C.muted, marginBottom: 12 }}>{online ? "VERBINDUNG ERFOLGREICH" : "BOT NICHT ERREICHBAR"}</div>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: "clamp(28px, 4vw, 44px)", lineHeight: 1.1 }}>
+            {st.name} {online ? <span style={{ color: C.green }}>ist verbunden</span> : <span style={{ color: C.red }}>ist offline</span>}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px 0 10px", color: online ? C.green : C.red, fontSize: 18, fontWeight: 600 }}>
+            <span style={{ width: 14, height: 14, borderRadius: 99, background: online ? C.green : C.red, boxShadow: `0 0 12px ${online ? C.green : C.red}` }} />
+            {online ? "Der Bot läuft und ist mit diesem Server verbunden." : "Der Bot meldet sich gerade nicht."}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 20 }}>
+            <span style={{ ...monoFont, fontSize: 12, border: `1px solid ${C.gold}88`, borderRadius: 10, padding: "12px 16px", color: C.gold }}>DASHBOARD</span>
+            <Pill>LIVE VERBUNDEN</Pill>
+            <span style={{ ...monoFont, fontSize: 12, border: `1px solid ${C.gold}88`, borderRadius: 10, padding: "12px 16px", color: C.gold }}>{st.name.toUpperCase()}</span>
+          </div>
+        </Panel>
+        <Panel style={{ padding: 22 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 20, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}><Activity size={20} color={C.gold} />Server-Status</div>
+          {[[online, online ? "Bot online" : "Bot offline", online ? "Der Bot ist mit Discord verbunden." : "Keine Verbindung zu Discord."],
+            [true, "Verbindung steht", "Das Dashboard erreicht den Bot."],
+            [true, `Letzte Prüfung: ${agoText(st.checked_at)}`, "Diese Seite wurde soeben vom Bot beantwortet."]].map(([ok, t, s], i) => (
+            <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ width: 11, height: 11, borderRadius: 99, background: ok ? C.green : C.red, marginTop: 5, flexShrink: 0 }} />
+              <span><span style={{ display: "block", fontWeight: 600, fontSize: 14.5 }}>{t}</span><span style={{ fontSize: 12.5, color: C.muted }}>{s}</span></span>
+            </div>
+          ))}
+          {[["Servername", st.name], ["Server-ID", st.id], ["Mitglieder", st.member_count?.toLocaleString("de-DE")], ["Rollen", st.role_count?.toLocaleString("de-DE")]].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", fontSize: 13.5 }}>
+              <span style={{ color: C.muted }}>{k}</span><span style={{ ...(k === "Server-ID" ? monoFont : {}), textAlign: "right", wordBreak: "break-all" }}>{v}</span>
+            </div>
+          ))}
+        </Panel>
+      </div>
+
+      <Panel style={{ padding: 22, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 20, display: "flex", alignItems: "center", gap: 10 }}><LayoutGrid size={20} color={C.gold} />Module &amp; Funktionen</div>
+          <button onClick={() => goTo("module")} style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>Alle Module anzeigen <ArrowRight size={15} /></button>
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Hier siehst du, welche Funktionen auf deinem Server eingeschaltet sind.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
+          {st.modules.map((m) => {
+            const [I, desc] = MODULE_INFO[m.key] || [LayoutGrid, ""];
+            return (
+              <button key={m.key} onClick={() => goTo("module")} style={{ textAlign: "left", cursor: "pointer", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, color: C.text }}>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <span style={{ width: 44, height: 44, borderRadius: 10, background: `${C.gold}1F`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I size={21} color={C.gold} /></span>
+                  <span><span style={{ display: "block", fontWeight: 600 }}>{m.name}</span><span style={{ fontSize: 12.5, color: C.muted }}>{desc}</span></span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontWeight: 600, fontSize: 14, color: m.enabled ? C.green : C.muted }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 99, background: m.enabled ? C.green : C.muted }} />{m.enabled ? "Aktiv" : "Ausgeschaltet"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
+        <Panel style={{ padding: 22 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 20, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}><Activity size={20} color={C.gold} />Neueste Aktivitäten</div>
+          <ActivityList items={team?.recent} />
+          <button onClick={() => goTo("logs")} style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 13.5, marginTop: 8, padding: 0 }}>Alle anzeigen →</button>
+        </Panel>
+        <Panel style={{ padding: 22 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 20, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}><Sparkles size={20} color={C.gold} />Schnellaktionen</div>
+          <LinkRow icon={Settings} title="Server-Einstellungen" text="Prefix, Module, Berechtigungen" onClick={() => goTo("settings")} />
+          <LinkRow icon={ScrollText} title="Logs anzeigen" text="Aktivitäten und Änderungen" onClick={() => goTo("logs")} />
+          <LinkRow icon={RefreshCw} title="Befehle synchronisieren" text="Slash-Commands bei Discord aktualisieren" onClick={sync} />
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function DashboardRouter() {
+  const { role } = useLive();
+  return role ? <ConnectedOverview /> : <DashboardSection />;   // ohne Anmeldung bleibt die bisherige Demo-Übersicht
+}
+
+/* ---------------- Team-Konsole (Support, Moderator, Admin, Owner) ---------------- */
+function TeamConsole() {
+  const { live, role } = useLive();
+  const [d, err] = useApiData("/api/team/dashboard");
+  const [pub, setPub] = useState(null);
+  useEffect(() => { apiGet("/api/public-status").then(setPub).catch(() => {}); }, []);
+  if (!live) return <HomeMessage eyebrow="Team" title="Team-Konsole">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (err) return <HomeMessage eyebrow="Team" title="Team-Konsole">Die Team-Konsole konnte nicht geladen werden ({err.includes("403") ? "nur für das Team" : "Server nicht erreichbar"}).</HomeMessage>;
+  if (!d) return <HomeMessage eyebrow="Team" title="Team-Konsole">Lade…</HomeMessage>;
+  const online = pub?.bot_status === "online";
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
+        <div>
+          <div style={{ fontSize: 17, color: C.muted }}>Willkommen in der</div>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: "clamp(30px, 4vw, 48px)", lineHeight: 1.1 }}>Team-Konsole</div>
+        </div>
+        <RoleBadge role={role} />
+      </div>
+      <div style={{ fontSize: 15, color: C.muted, marginBottom: 20 }}>Verwalte, unterstütze und schütze unsere Community.</div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+        <HomeStat icon={Ticket} label="Offene Tickets" value={d.open_tickets} accent={C.pink || C.gold} />
+        <HomeStat icon={ShieldHalf} label="Im Dienst" value={d.on_duty} accent={C.cyan} />
+        <HomeStat icon={Gift} label="Aktive Giveaways" value={d.active_giveaways} accent={C.gold} />
+        <HomeStat icon={Activity} label="Bot-Status" value={pub ? (online ? "Online" : "Offline") : "—"} accent={online ? C.green : C.muted} sub={pub ? `Laufzeit ${formatUptime(pub.uptime_seconds)}` : null} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <Panel style={{ padding: 22, gridColumn: "span 2", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, display: "flex", alignItems: "center", gap: 10 }}><Ticket size={21} color={C.gold} />Support-Warteschlange</div>
+            <button onClick={() => goTo("tickets")} style={{ background: C.panelAlt, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}>Alle Tickets anzeigen →</button>
+          </div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Die neuesten offenen Tickets aus der Community</div>
+          {d.queue.length === 0 ? <div style={{ fontSize: 13.5, color: C.muted, padding: "10px 2px" }}>Keine offenen Tickets. 🎉</div> : d.queue.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 14, background: C.panelAlt, border: `1px solid ${C.border}`, borderLeft: `3px solid ${t.claimed_by ? C.green : C.gold}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>{t.subject || "Ticket"}</div>
+                <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>{t.category || "Allgemein"} &nbsp;|&nbsp; {t.username} &nbsp;|&nbsp; {agoText(t.created_at)}{t.case_id ? ` | #${t.case_id}` : ""}{t.claimed_by ? " | übernommen" : ""}</div>
+              </div>
+              <button onClick={() => goTo("tickets")} style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 13.5 }}>Öffnen</button>
+            </div>
+          ))}
+        </Panel>
+        <Panel style={{ padding: 22 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, marginBottom: 4, display: "flex", alignItems: "center", gap: 10 }}><Sparkles size={21} color={C.gold} />Schnellzugriff</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Häufig genutzte Funktionen</div>
+          <LinkRow icon={ScrollText} title="Audit Logs" text="Aktivitäten und Änderungen einsehen" onClick={() => goTo("logs")} />
+          <LinkRow icon={Contact} title="Ausweise" text="Name, Beruf und Roblox-Nutzername" onClick={() => goTo("ausweise")} />
+          {roleRank(role) >= 3 && <LinkRow icon={Settings} title="Server-Einstellungen" text="Konfiguration und Integrationen" onClick={() => goTo("settings")} />}
+          {roleRank(role) >= 3 && <LinkRow icon={Users} title="Rollen verwalten" text="Berechtigungen und Team-Rollen" onClick={() => goTo("users")} />}
+          <div style={{ display: "flex", gap: 10, fontSize: 12.5, color: C.muted, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", marginTop: 4 }}><Info size={16} style={{ flexShrink: 0 }} />Diese Funktionen sind nur für Team-Mitglieder mit entsprechender Berechtigung verfügbar.</div>
+        </Panel>
+      </div>
+      <Panel style={{ padding: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, display: "flex", alignItems: "center", gap: 10 }}><ScrollText size={21} color={C.gold} />Letzte Aktionen</div>
+          <button onClick={() => goTo("logs")} style={{ background: C.panelAlt, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}>Alle Logs anzeigen →</button>
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>Neueste Einträge aus dem Server-Protokoll</div>
+        <ActivityList items={d.recent} />
+      </Panel>
+    </>
+  );
+}
+
+/* ---------------- Bewohner-Übersicht ---------------- */
+function activityText(a, me) {
+  const money = `${(a.amount || 0).toLocaleString("de-DE")} ₡`;
+  if (a.type === "Überweisung") return a.from === me ? `Du hast ${money} an ${a.to} überwiesen.` : `${a.from} hat dir ${money} überwiesen.`;
+  if (a.type === "Einzahlung") return `Du hast ${money} eingezahlt.`;
+  if (a.type === "Auszahlung") return `Du hast ${money} abgehoben.`;
+  if (a.type === "Zinsen") return `Zinsen gutgeschrieben: ${money}.`;
+  return `${a.type || "Buchung"}: ${money}`;
+}
+
+function BalanceDonut({ bank, cash }) {
+  const total = bank + cash, R = 70, CIRC = 2 * Math.PI * R;
+  const bankLen = total ? (bank / total) * CIRC : 0;
+  return (
+    <svg width="190" height="190" viewBox="0 0 190 190" role="img" aria-label="Verteilung deines Guthabens">
+      <g transform="rotate(-90 95 95)" fill="none" strokeWidth="26">
+        <circle cx="95" cy="95" r={R} stroke={C.border} />
+        {total > 0 && <circle cx="95" cy="95" r={R} stroke="#f59e0b" strokeDasharray={`${CIRC} ${CIRC}`} />}
+        {bankLen > 0 && <circle cx="95" cy="95" r={R} stroke={C.gold} strokeDasharray={`${bankLen} ${CIRC}`} />}
+      </g>
+      <text x="95" y="92" textAnchor="middle" fill={C.text} fontSize="20" fontWeight="700" style={serifFont}>{total.toLocaleString("de-DE")} ₡</text>
+      <text x="95" y="112" textAnchor="middle" fill={C.muted} fontSize="11.5">Gesamtguthaben</text>
+    </svg>
+  );
+}
+
+function ResidentHome() {
+  const { live, role } = useLive();
+  const [d, err] = useApiData("/api/me/dashboard");
+  if (!live) return <HomeMessage eyebrow="Willkommen" title="Übersicht">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (err) return <HomeMessage eyebrow="Willkommen" title="Übersicht">Deine Übersicht konnte nicht geladen werden.</HomeMessage>;
+  if (!d) return <HomeMessage eyebrow="Willkommen" title="Übersicht">Lade…</HomeMessage>;
+  const pct = (v) => (d.total ? Math.round((v * 100) / d.total) : 0);
+  const afkText = d.afk ? `seit ${new Date(d.afk.since.endsWith("Z") || d.afk.since.includes("+") ? d.afk.since : d.afk.since + "Z").toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr` : "Nicht AFK";
+  return (
+    <>
+      <div style={{ fontSize: 17, color: C.muted }}>Willkommen zurück,</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 4 }}>
+        <div style={{ ...serifFont, fontWeight: 700, fontSize: "clamp(32px, 4.5vw, 52px)", lineHeight: 1.1 }}>{d.username}</div>
+        <RoleBadge role={role} />
+      </div>
+      <div style={{ fontSize: 15, color: C.muted, marginBottom: 22 }}>Schön, dass du wieder da bist. Hier ist deine Übersicht.</div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+        <HomeStat icon={Coins} label="Kontostand" value={fmtMoney(d.balance)} accent="#f59e0b" />
+        <HomeStat icon={Wallet} label="Bargeld" value={fmtMoney(d.cash)} accent={C.cyan} />
+        <HomeStat icon={Gift} label="Aktive Giveaways" value={d.active_giveaways} accent={C.pink || C.gold} />
+        <HomeStat icon={Moon} label="AFK-Status" value={d.afk ? "AFK" : "Anwesend"} accent={d.afk ? C.muted : C.green} sub={d.afk ? afkText : "Du bist nicht AFK"} />
+        <HomeStat icon={Ticket} label="Offene Tickets" value={d.open_tickets} accent={C.pink || C.gold} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <Panel style={{ padding: 22, gridColumn: "span 2", minWidth: 0 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, marginBottom: 4 }}>Mein Guthaben</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Übersicht deiner Finanzen auf dem Server.</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
+            <BalanceDonut bank={d.balance} cash={d.cash} />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              {[["Bank-System", d.balance, C.gold, `${pct(d.balance)}%`], ["Bargeld (Ingame)", d.cash, "#f59e0b", `${pct(d.cash)}%`]].map(([n, v, col, p]) => (
+                <div key={n} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ width: 13, height: 13, borderRadius: 4, background: col }} />
+                  <span style={{ flex: 1 }}>{n}</span><span>{fmtMoney(v)}</span><span style={{ color: C.muted, width: 46, textAlign: "right" }}>{p}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+        <Panel style={{ padding: 22 }}>
+          <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, marginBottom: 4, display: "flex", alignItems: "center", gap: 10 }}><Sparkles size={21} color={C.gold} />Schnellaktionen</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Direkt zu den wichtigsten Funktionen.</div>
+          <LinkRow icon={Contact} title="Mein Ausweis" text="Name, Beruf und Roblox-Nutzername pflegen" onClick={() => goTo("myausweis")} />
+          <LinkRow icon={Ticket} title="Meine Tickets" text="Deine Support-Anfragen ansehen" onClick={() => goTo("mytickets")} />
+          <LinkRow icon={Moon} title="AFK-System" text="AFK-Status setzen oder beenden" onClick={() => goTo("afk")} />
+        </Panel>
+      </div>
+      <Panel style={{ padding: 22 }}>
+        <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, marginBottom: 4, display: "flex", alignItems: "center", gap: 10 }}><Activity size={21} color={C.gold} />Neueste Aktivitäten</div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>Deine letzten Buchungen auf dem Server.</div>
+        <ActivityList items={d.recent.map((a, i) => ({ id: i, text: activityText(a, d.username), time: a.time }))} />
+      </Panel>
+    </>
+  );
+}
+
+/* ---------------- Meine Tickets / Mein Ausweis ---------------- */
+function MyTicketsSection() {
+  const { live } = useLive();
+  const [items, err] = useApiData("/api/me/tickets");
+  if (!live) return <HomeMessage eyebrow="Support" title="Meine Tickets">Nur im Live-Modus verfügbar.</HomeMessage>;
+  if (err) return <HomeMessage eyebrow="Support" title="Meine Tickets">Deine Tickets konnten nicht geladen werden.</HomeMessage>;
+  if (!items) return <HomeMessage eyebrow="Support" title="Meine Tickets">Lade…</HomeMessage>;
+  return (
+    <>
+      <SectionTitle eyebrow="Support" title="Meine Tickets" />
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Neue Tickets eröffnest du im Discord über das Ticket-Panel.</div>
+      <Panel style={{ padding: items.length ? 0 : 18, overflowX: "auto" }}>
+        {items.length === 0 ? <span style={{ fontSize: 13.5, color: C.muted }}>Du hast noch keine Tickets.</span> : (
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+            <thead><tr><Th>Betreff</Th><Th>Kategorie</Th><Th>Status</Th><Th>Erstellt</Th></tr></thead>
+            <tbody>{items.map((t) => (
+              <tr key={t.id}>
+                <Td>{t.subject || "Ticket"}{t.case_id ? <span style={{ color: C.muted }}> #{t.case_id}</span> : null}</Td>
+                <Td>{t.category || "—"}</Td>
+                <Td><Badge color={t.status === "offen" ? C.green : C.muted}>{t.status}</Badge></Td>
+                <Td style={{ color: C.muted, fontSize: 12.5 }}>{agoText(t.created_at)}</Td>
+              </tr>))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </>
+  );
+}
+
+function MyAusweisSection() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [a, err, reload] = useApiData("/api/me/ausweis");
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (a) setForm({ name: a.name || "", beruf: a.beruf || "", roblox_name: a.roblox_name || "" }); }, [a]);
+  if (!live) return <HomeMessage eyebrow="Profil" title="Mein Ausweis">Nur im Live-Modus verfügbar.</HomeMessage>;
+  if (err) return <HomeMessage eyebrow="Profil" title="Mein Ausweis">Dein Ausweis konnte nicht geladen werden.</HomeMessage>;
+  if (!a || !form) return <HomeMessage eyebrow="Profil" title="Mein Ausweis">Lade…</HomeMessage>;
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}${withGuild("/api/me/ausweis")}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Speichern fehlgeschlagen (${res.status}).`);
+      toast("Ausweis gespeichert.", "success"); reload();
+    } catch (e) { toast(e.message || "Speichern fehlgeschlagen.", "error"); } finally { setSaving(false); }
+  };
+  return (
+    <>
+      <SectionTitle eyebrow="Profil" title="Mein Ausweis" action={<PrimaryBtn onClick={save} disabled={saving}>{saving ? "Speichere…" : "Speichern"}</PrimaryBtn>} />
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 14, maxWidth: 560 }}>Dein Ausweis hat drei Angaben. Du siehst sie auch im Discord mit <b>/ausweis anzeigen</b>.</div>
+      <Panel style={{ padding: 20, maxWidth: 520 }}>
+        <KiField label="Name"><input value={form.name} maxLength={60} onChange={(e) => setForm({ ...form, name: e.target.value })} style={KI_INPUT_STYLE} /></KiField>
+        <KiField label="Beruf"><input value={form.beruf} maxLength={60} onChange={(e) => setForm({ ...form, beruf: e.target.value })} style={KI_INPUT_STYLE} /></KiField>
+        <KiField label="Roblox-Nutzername" hint="3–20 Zeichen: Buchstaben, Ziffern, Unterstrich."><input value={form.roblox_name} maxLength={21} onChange={(e) => setForm({ ...form, roblox_name: e.target.value.trim() })} style={KI_INPUT_STYLE} /></KiField>
+        <div style={{ fontSize: 11.5, color: C.muted }}>Zuletzt geändert: {a.updated_at ? new Date(a.updated_at).toLocaleString("de-DE") : "—"}</div>
+      </Panel>
+    </>
+  );
+}
+
 const SECTIONS = {
-  dashboard: DashboardSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
+  dashboard: DashboardRouter, kennzahlen: DashboardSection, resident: ResidentHome, teamconsole: TeamConsole,
+  mytickets: MyTicketsSection, myausweis: MyAusweisSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
   afk: AfkSection, team: TeamSection, meetings: MeetingsSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
   tickets: TicketsSection, ki: KiSupportSection, serverstat: ServerstatSection, stats: StatsSection, users: UsersSection, ausweise: AusweiseSection, security: SecuritySection,
   bot: BotSection, module: ModuleSection, settings: SettingsSection,
@@ -3042,9 +3467,12 @@ export default function DiscordBotDashboard() {
   const [overview, setOverview] = useState(null);
   const [myGuilds, setMyGuilds] = useState(null); // null = noch nicht geladen
   const [guildInfo, setGuildInfo] = useState(null);
+  const [role, setRole] = useState(null);   // Rolle auf dem gewählten Server (Mitglied, Support, Moderator, Admin, Owner)
   const [authState, setAuthState] = useState("loading"); // loading | in | out | offline
   const demo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
-  const Active = SECTIONS[active];
+  const nav = role == null ? NAV : navForRole(role);
+  const activeKey = nav.some((n) => n.key === active) ? active : nav[0].key;   // Bereiche außerhalb der eigenen Rolle werden nie gezeigt
+  const Active = SECTIONS[activeKey];
 
   useEffect(() => {
     const handler = (e) => setActive(e.detail);
@@ -3055,11 +3483,14 @@ export default function DiscordBotDashboard() {
   useEffect(() => {
     let cancelled = false;
     // Verbindungscheck: klappt der Aufruf, ist die API erreichbar -> Live-Modus.
-    apiGet("/api/overview")
-      .then((data) => {
+    // Verbindungscheck über die eigene Rolle (für jedes Servermitglied erlaubt). Klappt er, ist die API erreichbar -> Live-Modus.
+    apiGet("/api/my-role")
+      .then((r) => {
         if (cancelled) return;
-        setOverview(data);
+        setRole(r.role);
         setLive(true);
+        // Die Gesamtübersicht für die Statusleiste dürfen nur Team-Rollen abrufen.
+        if (roleRank(r.role) >= 1) apiGet("/api/overview").then((data) => !cancelled && setOverview(data)).catch(() => {});
       })
       .catch(() => {
         // Backend nicht erreichbar (oder noch kein Server ausgewählt) -> Demo-Modus.
@@ -3093,7 +3524,7 @@ export default function DiscordBotDashboard() {
   if (needsGuildSelection) {
     return (
       <DialogProvider>
-        <LiveContext.Provider value={{ live, user, myGuilds }}>
+        <LiveContext.Provider value={{ live, user, myGuilds, role }}>
           <style>{fontsCss}</style>
           <ServerSelectScreen guilds={myGuilds} overview={null} user={user} />
         </LiveContext.Provider>
@@ -3103,7 +3534,7 @@ export default function DiscordBotDashboard() {
 
   return (
     <DialogProvider>
-    <LiveContext.Provider value={{ live, user, myGuilds }}>
+    <LiveContext.Provider value={{ live, user, myGuilds, role }}>
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -3161,9 +3592,9 @@ export default function DiscordBotDashboard() {
           </div>
 
           <div className="app-sidebar-nav">
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const Icon = n.icon;
-            const isActive = active === n.key;
+            const isActive = activeKey === n.key;
             return (
               <button
                 key={n.key}
@@ -3190,7 +3621,7 @@ export default function DiscordBotDashboard() {
 
         {/* Main */}
         <div className="app-main">
-          <div key={active} className="section-fade">
+          <div key={activeKey} className="section-fade">
             <Active />
           </div>
         </div>
