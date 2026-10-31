@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dresden RP – Projektstatus</title>
+<style>
+:root{--bg:#f6f5fa;--card:#fff;--text:#1d1a2b;--muted:#6b6680;--border:#e3e0ee;--accent:#6d4ae0;--live:#15803d;--fertig:#6d4ae0;--pruefen:#b45309;--offen:#64748b;--wichtig:#c2410c;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121017;--card:#1b1826;--text:#edebf2;--muted:#948fa3;--border:#332e42;--accent:#8b5cf6;--live:#4ade80;--fertig:#a78bfa;--pruefen:#f2a950;--offen:#94a3b8;--wichtig:#fb923c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121017;--card:#1b1826;--text:#edebf2;--muted:#948fa3;--border:#332e42;--accent:#8b5cf6;--live:#4ade80;--fertig:#a78bfa;--pruefen:#f2a950;--offen:#94a3b8;--wichtig:#fb923c;color-scheme:dark}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:920px;margin:0 auto;padding:28px 18px 60px}
+h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(26px,5vw,36px);margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 22px}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.sum div{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.sum b{display:block;font-size:26px;line-height:1.1}
+.sum span{font-size:12.5px;color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+.filters button{font:inherit;font-size:13px;padding:6px 12px;border-radius:99px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px}
+.item{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--c,var(--offen));border-radius:12px;padding:13px 15px;margin-bottom:10px}
+.item .top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.item h3{margin:0;font-size:16px}
+.badge{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:99px;border:1px solid var(--c);color:var(--c);white-space:nowrap}
+.item p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.item p.todo{color:var(--text)}
+.tag{font-size:11px;font-weight:700;color:var(--wichtig);margin-left:8px}
+.live{--c:var(--live)}.fertig{--c:var(--fertig)}.pruefen{--c:var(--pruefen)}.offen{--c:var(--offen)}
+.check label{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.check input{margin-top:4px;accent-color:var(--accent)}
+.check{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:4px 15px}
+.check label:last-child{border-bottom:0}
+.note{color:var(--muted);font-size:12.5px;margin-top:26px}
+</style>
+</head>
+<body>
+<main>
+<h1>Dresden RP – Projektstatus</h1>
+<p class="sub">Stand 31. Oktober 2026 · was fertig ist und was noch fehlt</p>
+<div class="sum" id="sum"></div>
+<div class="filters" id="filters" role="group" aria-label="Filter"></div>
+<div id="groups"></div>
+<h2>Deine nächsten Schritte</h2>
+<div class="check" id="check"></div>
+<p class="note">„Fertig“ heißt: Code geschrieben und im Testlauf geprüft (140 Tests bestanden, 1 fehlgeschlagen: der KI-Test braucht deine <code>wissen.py</code>). Nur „Live bestätigt“ wurde auf deinem echten Server gesehen.</p>
+</main>
+<script>
+var L={live:"Live bestätigt",fertig:"Fertig, noch nicht live geprüft",pruefen:"Von dir zu prüfen",offen:"Offen"};
+var G=[
+["Funktionen",[
+["live","Verbindung Dashboard ↔ Bot","Anfragen von Vercel kommen im Bot auf Ryft an (Konsolen-Log).",""],
+["pruefen","Discord-Login","Weiterleitung auf deine Vercel-Adresse ist im Code gesetzt. Es fehlt die Bestätigung, dass der Login komplett durchläuft.","Redirect-Adresse im Discord Developer Portal eintragen und Login testen."],
+["fertig","Adventskalender","Modul mit Schalter unter Module, 6 Tests bestanden.","Türchen lassen sich erst ab 1. Dezember wirklich testen."],
+["fertig","KI-Support","Code und 25 von 26 Tests in Ordnung.","ANTHROPIC_API_KEY auf Ryft setzen, im Dashboard „Verbindung testen“."],
+["fertig","/serverstat und Serverstatistik","Command, Dashboard-Bereich und Roblox-Abfrage, 60 Tests bestanden.","Roblox-Abfrage war nur simuliert: Place-ID eintragen und prüfen."],
+["fertig","Ausweise (Name, Beruf, Roblox-Nutzername)","Befehle und Dashboard-Bereich, 24 Tests; alte Daten werden beim Start übernommen.","Auf deiner echten Datenbank noch nicht getestet."]]],
+["Neues Design",[
+["fertig","Anmeldeseite","Nach deinem Entwurf, per Screenshot geprüft.","Skyline und Wappen sind einfache Zeichnungen, Originalbilder bitte schicken."],
+["fertig","Serverauswahl","Nach deinem Entwurf, per Screenshot geprüft.",""],
+["fertig","Übersicht „Dresden RP ist verbunden“","Für Admin und Owner: Bot-Status, Servercheck, Module, Aktivitäten. Per Screenshot geprüft.",""],
+["fertig","Bewohner-Übersicht, Meine Tickets, Mein Ausweis","Kontostand, Guthaben-Diagramm, eigene Buchungen. Per Screenshot geprüft.",""],
+["fertig","Team-Konsole","Warteschlange, Kennzahlen, letzte Aktionen. Ohne Moderation und ohne erfundene Zahlen.",""],
+["fertig","Navigation je nach Rolle","Bewohner, Team (Support, Moderator) und Admin/Owner sehen verschiedene Bereiche.",""],
+["offen","Bewohner-Seiten für Bank, Shop und Giveaways","Überweisen, Einkaufen und Teilnehmen im Dashboard. Bisher geht das nur im Discord.",""],
+["offen","Mitglieder-Ansicht für das Team (nur lesen)","Support und Moderatoren sehen die Benutzerliste noch nicht.",""]]],
+["Sicherheit",[
+["fertig","Rechteprüfung im Backend","Jeder Endpunkt steht in einer Tabelle (Bewohner, Team, Admin), Unbekanntes wird gesperrt. Rollen ändern nur Admin bis Moderator, Admin-Rechte nur der Owner.",""],
+["fertig","Endpunkte ohne Login","Alle Daten verlangen jetzt Anmeldung und Servermitgliedschaft.",""],
+["pruefen","JWT_SECRET","Steht noch auf dem unsicheren Standardwert, solange du keinen eigenen Wert auf Ryft setzt.","!"]]]
+];
+var S=[
+"Alle sechs Backend-Dateien auf Ryft ersetzen: app.py, models.py, permissions.py, serverstat.py, advent.py, ki_support.py",
+"App.jsx auf Vercel einspielen und neu deployen",
+"JWT_SECRET und ANTHROPIC_API_KEY als Umgebungsvariablen auf Ryft setzen",
+"Redirect-Adresse im Discord Developer Portal eintragen",
+"Danach prüfen: Dashboard als Admin, als Supporter und als Bewohner öffnen"];
+var cur="alle",$=function(i){return document.getElementById(i)};
+function esc(t){return String(t).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+function render(){
+ var n={live:0,fertig:0,pruefen:0,offen:0},h="";
+ G.forEach(function(g){var items="";g[1].forEach(function(i){n[i[0]]++;if(cur!=="alle"&&cur!==i[0])return;
+  items+='<div class="item '+i[0]+'"><div class="top"><h3>'+esc(i[1])+(i[3]==="!"?'<span class="tag">WICHTIG</span>':'')+'</h3><span class="badge">'+L[i[0]]+'</span></div>'+(i[2]?'<p>'+esc(i[2])+'</p>':'')+(i[3]&&i[3]!=="!"?'<p class="todo">→ '+esc(i[3])+'</p>':'')+'</div>'});
+  if(items)h+='<h2>'+g[0]+'</h2>'+items});
+ $("groups").innerHTML=h||'<p class="sub">Nichts in dieser Ansicht.</p>';
+ $("sum").innerHTML=["live","fertig","pruefen","offen"].map(function(k){return'<div class="'+k+'" style="border-left:4px solid var(--c)"><b>'+n[k]+'</b><span>'+L[k]+'</span></div>'}).join("");
+ $("filters").innerHTML=[["alle","Alle"],["fertig","Fertig"],["pruefen","Zu prüfen"],["offen","Offen"]].map(function(f){return'<button data-f="'+f[0]+'" aria-pressed="'+(cur===f[0])+'">'+f[1]+'</button>'}).join("")}
+$("filters").addEventListener("click",function(e){var f=e.target.getAttribute("data-f");if(f){cur=f;render()}});
+function load(){try{return JSON.parse(localStorage.getItem("dresden-rp-schritte")||"[]")}catch(e){return[]}}
+function save(a){try{localStorage.setItem("dresden-rp-schritte",JSON.stringify(a))}catch(e){}}
+var done=load();
+$("check").innerHTML=S.map(function(t,i){return'<label><input type="checkbox" data-i="'+i+'"'+(done.indexOf(i)>-1?" checked":"")+'><span>'+esc(t)+'</span></label>'}).join("");
+$("check").addEventListener("change",function(e){var i=+e.target.getAttribute("data-i");done=done.filter(function(x){return x!==i});if(e.target.checked)done.push(i);save(done)});
+render();
+</script>
+</body>
+</html>
