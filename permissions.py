@@ -104,15 +104,17 @@ def role_allows(role: str | None, level: str) -> bool:
     return role_rank(role) >= LEVEL_MIN_RANK[level]
 
 
-ASSIGNABLE_ROLES = ("Mitglied", "Support", "Moderator", "Admin")   # "Owner" ist immer der Discord-Server-Owner
+ASSIGNABLE_ROLES = ("Mitglied", "Support", "Moderator", "Admin", "Owner")
 
 
-def can_assign_role(actor_role: str | None, target_current_role: str | None, new_role: str) -> bool:
+def can_assign_role(actor_role: str | None, target_current_role: str | None, new_role: str, *,
+                    same_person: bool = False, target_is_fixed_owner: bool = False) -> bool:
     """Wer darf wem welche Rolle geben?
-    - Owner (Server-Eigentümer) darf alles außer die Owner-Rolle selbst zu ändern oder zu vergeben.
-    - Admins verwalten bis Moderator; Admin-Rechte vergibt oder entzieht nur der Owner.
-    - Der Server-Owner selbst bleibt immer Owner (wird von Discord vorgegeben)."""
-    if new_role not in ASSIGNABLE_ROLES or role_rank(target_current_role) >= ROLE_RANK["Owner"]:
+    - Niemand ändert die eigene Rolle über die Rollenverwaltung (Inhaber können sich so nicht selbst entmachten).
+    - Feste Inhaber (Discord-Serverbesitzer und OWNER_DISCORD_IDS) bleiben immer Inhaber und sind unveränderbar.
+    - Inhaber (Owner) dürfen jede Rolle vergeben, auch weitere Inhaber ernennen oder ernannte Inhaber wieder abstufen.
+    - Admins verwalten nur Mitglieder bis Moderator; Admin- und Inhaber-Rechte vergeben oder entziehen sie nie."""
+    if new_role not in ASSIGNABLE_ROLES or same_person or target_is_fixed_owner:
         return False
     actor = role_rank(actor_role)
     if actor >= ROLE_RANK["Owner"]:
