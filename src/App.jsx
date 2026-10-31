@@ -1733,6 +1733,8 @@ const SETTINGS_GROUPS = [
   },
 ];
 
+const OWNER_ONLY_KEYS = ["admin_rolle"];   // nur der Inhaber darf bestimmen, wer Admin ist (das Backend prüft das ebenfalls)
+
 function SettingsSection() {
   const { live } = useLive();
   const { toast } = useDialog();
@@ -1750,7 +1752,7 @@ function SettingsSection() {
 
   const saveGroup = (group) => {
     const payload = {};
-    group.fields.forEach(([key]) => { payload[key] = values[key] ?? ""; });
+    group.fields.forEach(([key]) => { if (OWNER_ONLY_KEYS.includes(key) && myRole !== "Owner") return; payload[key] = values[key] ?? ""; });
     if (!live) return toast("Nur im Live-Modus möglich.");
     apiPost("/api/settings", payload)
       .then(() => { setSavedGroup(group.title); setTimeout(() => setSavedGroup(null), 2000); })
@@ -1773,8 +1775,10 @@ function SettingsSection() {
             </div>
             {g.fields.map(([key, label, type]) => (
               <div key={key} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}</div>
-                {type === "channel" ? (
+                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{label}{OWNER_ONLY_KEYS.includes(key) && myRole !== "Owner" ? " (nur Inhaber)" : ""}</div>
+                {OWNER_ONLY_KEYS.includes(key) && myRole !== "Owner" ? (
+                  <div style={{ opacity: 0.55, pointerEvents: "none" }}><RoleSelect value={values[key] ?? ""} onChange={() => {}} style={{ width: "100%" }} /></div>
+                ) : type === "channel" ? (
                   <ChannelSelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
                 ) : type === "category" ? (
                   <CategorySelect value={values[key] ?? ""} onChange={(v) => setField(key, v)} style={{ width: "100%" }} />
@@ -1860,7 +1864,9 @@ function ModuleSection() {
 const TEAM_ROLES = ["Support", "Moderator", "Admin", "Owner"];
 
 function TeamSection() {
-  const { live } = useLive();
+  const { live, role: myRoleKey } = useLive();
+  const iAmOwner = roleRank(myRoleKey) >= 4;
+  const assignableRoles = TEAM_ROLES.filter((r) => r !== "Owner" || iAmOwner);   // nur Inhaber ernennen Inhaber
   const { toast, confirm } = useDialog();
   const [team, setTeam] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -1947,13 +1953,13 @@ function TeamSection() {
                   <Td><Badge color={m.status === "online" ? C.green : m.status === "idle" ? C.gold : C.muted}><StatusDot status={m.status} /> {m.status}</Badge></Td>
                   <Td>
                     <select
-                      value={m.role} onChange={(e) => changeRole(m, e.target.value)}
+                      value={m.role} onChange={(e) => changeRole(m, e.target.value)} disabled={roleRank(m.role) >= 3 && !iAmOwner}
                       style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", color: C.text, fontSize: 12.5 }}
                     >
-                      {TEAM_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      {TEAM_ROLES.filter((r) => r !== "Owner" || iAmOwner || m.role === "Owner").map((r) => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}
                     </select>
                   </Td>
-                  <Td align="right"><IconBtn icon={Trash2} danger onClick={() => removeFromTeam(m)} /></Td>
+                  <Td align="right"><IconBtn icon={Trash2} danger onClick={() => removeFromTeam(m)} disabled={roleRank(m.role) >= 3 && !iAmOwner} /></Td>
                 </tr>
               ))}
             </tbody>
@@ -3243,7 +3249,7 @@ const SECTIONS = {
 /* ---------------------------------------------------------
    ANMELDESEITE + SERVERAUSWAHL (neues Design)
 --------------------------------------------------------- */
-const ROLE_LABEL = { Mitglied: "Bewohner", Support: "Supporter", Moderator: "Moderator", Admin: "Admin", Owner: "Owner" };
+const ROLE_LABEL = { Mitglied: "Bewohner", Support: "Supporter", Moderator: "Moderator", Admin: "Admin", Owner: "Inhaber" };
 const ROLE_ICON = { Mitglied: User, Support: Headphones, Moderator: Shield, Admin: Crown, Owner: Crown };
 
 function DiscordLogo({ size = 28, color = "#fff" }) {
