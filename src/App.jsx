@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
+import React, { useState, useEffect, useRef, createContext, useContext } from "react";
 import {
   LayoutDashboard, Landmark, ShoppingBag, ShieldHalf, Gift, ScrollText,
   Settings, Users, BarChart3, Lock, Circle, ArrowUpRight, ArrowDownRight,
-  Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet, TrendingUp,
+  Search, Plus, Pencil, Trash2, Power, Clock, Coins, Wallet,
   KeyRound, LogIn, ChevronRight, Activity, WifiOff, Wifi, Moon,
   Users2, ListChecks, Ticket, Bot as BotIcon, LayoutGrid, RefreshCw, Megaphone,
-  CalendarDays, Building2, MapPin, MessageSquare, Bell, ChevronDown, Sparkles, Contact,
+  CalendarDays, Building2, MapPin, MessageSquare, Bell, Sparkles, Contact,
   User, Headphones, Shield, Crown, ArrowRight, Info, Database, ExternalLink
 } from "lucide-react";
 
@@ -683,7 +683,6 @@ function DonutChart({ segments, size = 150, thickness = 22 }) {
 
 function DashboardSection() {
   const { live, user } = useLive();
-  const { toast } = useDialog();
   const [overview, setOverview] = useState(null);
 
   useEffect(() => {
@@ -1736,11 +1735,11 @@ const SETTINGS_GROUPS = [
 const OWNER_ONLY_KEYS = ["admin_rolle"];   // nur der Inhaber darf bestimmen, wer Admin ist (das Backend prüft das ebenfalls)
 
 function SettingsSection() {
-  const { live } = useLive();
+  const { live, role: ctxRole } = useLive();
   const { toast } = useDialog();
   const [values, setValues] = useState({});
   const [savedGroup, setSavedGroup] = useState(null);
-  const [myRole, setMyRole] = useState(null);
+  const [myRole, setMyRole] = useState(ctxRole ?? null);
 
   useEffect(() => {
     if (!live) return;
@@ -1922,12 +1921,12 @@ function TeamSection() {
             <div key={u.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 4px", borderBottom: `1px solid ${C.border}` }}>
               <span style={{ fontSize: 13, color: C.text }}>{u.name}</span>
               <div style={{ display: "flex", gap: 6 }}>
-                {TEAM_ROLES.map((r) => (
+                {assignableRoles.map((r) => (
                   <button
                     key={r} onClick={() => addToTeam(u, r)}
                     style={{ fontSize: 11, padding: "4px 9px", borderRadius: 5, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer" }}
                   >
-                    als {r}
+                    als {ROLE_LABEL[r] || r}
                   </button>
                 ))}
               </div>
