@@ -27,6 +27,7 @@ def fresh(monkeypatch):
     global ENV
     Base.metadata.drop_all(bind=engine); init_db()
     monkeypatch.setattr(botapp, "OWNER_DISCORD_IDS", set())
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", set())
     ENV = AuthEnv(botapp, monkeypatch)
     yield
 
@@ -270,3 +271,73 @@ def test_serverliste_normale_nutzer_behalten_ihre_rolle(monkeypatch):
     ENV.set_role(G1, "Support")
     monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [ENV._get_guild("1")]))
     assert ENV.client().get("/api/my-guilds").json()[0]["my_role"] == "Support"
+
+
+def test_login_schreibt_diagnosezeile_in_die_konsole(monkeypatch, capsys):
+    monkeypatch.setattr(botapp, "OWNER_DISCORD_IDS", {"42"})
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [ENV._get_guild("1")]))
+    with SessionLocal() as db:
+        botapp.refresh_roles_after_login(db, "42", "tester")
+    out = capsys.readouterr().out
+    assert "fester Inhaber laut OWNER_DISCORD_IDS: JA" in out and "auf 1 Server(n) als Mitglied erkannt" in out
+
+
+def test_login_diagnose_nennt_fehlenden_members_intent(monkeypatch, capsys):
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [SimpleNamespace(id=1, owner_id=999, get_member=lambda uid: None)]))
+    with SessionLocal() as db:
+        botapp.refresh_roles_after_login(db, "42", "tester")
+    out = capsys.readouterr().out
+    assert "fester Inhaber laut OWNER_DISCORD_IDS: nein" in out and "Server Members Intent" in out
+
+
+# ------------------------------------------------------------------ Einmalige Inhaber-Freischaltung (Bootstrap)
+def test_bootstrap_id_aus_code_und_umgebung_wird_gelesen():
+    assert botapp._parse_discord_ids("" + "," + "1367572713509621780") == ({"1367572713509621780"}, [])
+    assert botapp._parse_discord_ids("123456789012345678" + "," + "") == ({"123456789012345678"}, [])
+
+
+def test_bootstrap_macht_dauerhaft_zum_inhaber_auch_nach_entfernen(monkeypatch, capsys):
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", {"500"})
+    add_user("500", "Mitglied")
+    assert sync("500", fake_guild(500)) == "Owner"
+    assert setting("owner_ernannt") == "500"
+    assert "INHABER-FREISCHALTUNG" in capsys.readouterr().out
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", set())                  # Eintrag wieder entfernt, Neustart
+    assert sync("500", fake_guild(500)) == "Owner"                             # bleibt Inhaber
+    assert sync("500", fake_guild(500)) == "Owner"
+
+
+def test_bootstrap_meldet_sich_nur_einmal_und_erzeugt_keine_doppelten_eintraege(monkeypatch, capsys):
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", {"500"})
+    add_user("500", "Mitglied")
+    for _ in range(3):
+        sync("500", fake_guild(500))
+    assert capsys.readouterr().out.count("INHABER-FREISCHALTUNG") == 1
+    assert setting("owner_ernannt") == "500"
+
+
+def test_bootstrap_betrifft_nur_eingetragene_nutzer(monkeypatch):
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", {"500"})
+    add_user("501", "Mitglied")
+    assert sync("501", fake_guild(501)) == "Mitglied" and setting("owner_ernannt") is None
+
+
+def test_bootstrap_ueber_die_api_gilt_nach_entfernen_weiter(monkeypatch):
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", {"42"})
+    ENV.set_role(G1, "Mitglied")
+    assert ENV.client().get(f"/api/my-role?guild_id={G1}").json()["role"] == "Owner"
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", set())
+    c = ENV.client()
+    assert c.get(f"/api/my-role?guild_id={G1}").json()["role"] == "Owner"
+    assert c.get(f"/api/settings?guild_id={G1}").status_code == 200            # Vollzugriff bleibt
+
+
+def test_freigeschalteter_inhaber_laesst_sich_nur_von_anderem_inhaber_abstufen(monkeypatch):
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", {"42"})
+    ENV.set_role(G1, "Mitglied"); c = ENV.client()
+    c.get(f"/api/my-role?guild_id={G1}")
+    assert role_call(c, "42", "Mitglied").status_code == 403                  # nicht selbst
+    assert role_of("42") == "Owner"
+    monkeypatch.setattr(botapp, "OWNER_BOOTSTRAP_IDS", set())
+    add_user("99", "Mitglied")
+    assert role_call(c, "99", "Owner").status_code == 200                      # ernannter Inhaber darf weitere ernennen
