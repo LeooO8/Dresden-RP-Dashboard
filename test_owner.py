@@ -225,3 +225,48 @@ def test_rollenvergabe_schreibt_log_mit_namen():
     with SessionLocal() as db:
         from models import LogEntry
         assert any("u99" in l.text and "Moderator" in l.text for l in db.query(LogEntry).all())
+
+
+# ------------------------------------------------------------------ Login und Serverliste
+def test_eigene_discord_id_ist_gueltig():
+    assert botapp._parse_discord_ids("1367572713509621780") == ({"1367572713509621780"}, [])
+
+
+def test_login_gleicht_die_rolle_auf_allen_gemeinsamen_servern_sofort_ab(monkeypatch):
+    monkeypatch.setattr(botapp, "OWNER_DISCORD_IDS", {"42"})
+    guilds = [ENV._get_guild("1"), ENV._get_guild("2")]
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: guilds))
+    with SessionLocal() as db:
+        botapp.refresh_roles_after_login(db, "42", "tester")                   # noch kein Benutzer in der Datenbank
+    with SessionLocal() as db:
+        assert db.get(User, "1:42").role == "Owner" and db.get(User, "2:42").role == "Owner"
+
+
+def test_login_macht_normale_nutzer_nicht_zum_owner(monkeypatch):
+    monkeypatch.setattr(botapp, "OWNER_DISCORD_IDS", {"999999999999999999"})
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [ENV._get_guild("1")]))
+    with SessionLocal() as db:
+        botapp.refresh_roles_after_login(db, "42", "tester")
+    assert role_of("42") == "Mitglied"
+
+
+def test_login_bleibt_stabil_wenn_der_abgleich_fehlschlaegt(monkeypatch):
+    def kaputt(uid):
+        raise RuntimeError("Cache kaputt")
+    bad_guild = SimpleNamespace(id=1, owner_id=999, get_member=kaputt)
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [bad_guild]))
+    with SessionLocal() as db:
+        botapp.refresh_roles_after_login(db, "42", "tester")                   # darf keine Ausnahme auslösen
+
+
+def test_serverliste_zeigt_feste_inhaber_sofort_als_owner(monkeypatch):
+    monkeypatch.setattr(botapp, "OWNER_DISCORD_IDS", {"42"})
+    ENV.set_role(G1, "Mitglied")                                               # in der Datenbank noch veraltet
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [ENV._get_guild("1")]))
+    assert ENV.client().get("/api/my-guilds").json()[0]["my_role"] == "Owner"
+
+
+def test_serverliste_normale_nutzer_behalten_ihre_rolle(monkeypatch):
+    ENV.set_role(G1, "Support")
+    monkeypatch.setattr(type(botapp.bot), "guilds", property(lambda self: [ENV._get_guild("1")]))
+    assert ENV.client().get("/api/my-guilds").json()[0]["my_role"] == "Support"
