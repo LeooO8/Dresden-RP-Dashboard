@@ -282,6 +282,9 @@ const NAV = [
 // Bewohner sehen nur ihre eigenen Bereiche, das Team (Support/Moderator) die Team-Werkzeuge, Admin/Owner alles.
 const NAV_BEWOHNER = [
   { key: "resident", label: "Übersicht", icon: LayoutDashboard },
+  { key: "mybank", label: "Bank-System", icon: Landmark },
+  { key: "myshop", label: "Shop-System", icon: ShoppingBag },
+  { key: "mygiveaways", label: "Giveaways", icon: Gift },
   { key: "afk", label: "AFK-System", icon: Moon },
   { key: "mytickets", label: "Meine Tickets", icon: Ticket },
   { key: "myausweis", label: "Mein Ausweis", icon: Contact },
@@ -289,10 +292,14 @@ const NAV_BEWOHNER = [
 const NAV_TEAM = [
   { key: "teamconsole", label: "Team-Übersicht", icon: LayoutDashboard },
   { key: "tickets", label: "Support-Tickets", icon: Ticket },
+  { key: "members", label: "Mitglieder", icon: Users },
   { key: "ausweise", label: "Ausweise", icon: Contact },
   { key: "todo", label: "To-Do-Liste", icon: ListChecks },
   { key: "logs", label: "Audit Logs", icon: ScrollText },
   { key: "afk", label: "AFK-System", icon: Moon },
+  { key: "mybank", label: "Meine Bank", icon: Landmark },
+  { key: "myshop", label: "Shop", icon: ShoppingBag },
+  { key: "mygiveaways", label: "Giveaways", icon: Gift },
   { key: "myausweis", label: "Mein Ausweis", icon: Contact },
 ];
 const navForRole = (role) => (roleRank(role) >= 3 ? NAV : roleRank(role) >= 1 ? NAV_TEAM : NAV_BEWOHNER);
@@ -2718,7 +2725,7 @@ function AusweiseSection() {
     apiGet("/api/ausweise").then((r) => { setItems(r); setDenied(false); })
       .catch((err) => { if (String(err.message).includes("403")) setDenied(true); else toast("Ausweise konnten nicht geladen werden.", "error"); });
     apiGet("/api/my-role").then((r) => setRole(r.role)).catch(() => {});
-    apiGet("/api/users").then(setAllUsers).catch(() => {});
+    apiGet("/api/members").then(setAllUsers).catch(() => {});
   };
   useEffect(() => { if (live) refresh(); }, [live]);
 
@@ -3234,7 +3241,240 @@ function MyAusweisSection() {
   );
 }
 
+/* ---------------------------------------------------------
+   BEWOHNER-SEITEN: Bank-System, Shop-System, Giveaways (eigene Funktionen) und Mitgliederliste (Team, nur lesen)
+--------------------------------------------------------- */
+function untilText(iso) {
+  if (!iso) return "—";
+  const s = (new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z").getTime() - Date.now()) / 1000;
+  if (s <= 0) return "beendet";
+  if (s < 3600) return `in ${Math.max(1, Math.floor(s / 60))} Min.`;
+  if (s < 86400) return `in ${Math.floor(s / 3600)} Std.`;
+  return `in ${Math.floor(s / 86400)} Tagen`;
+}
+
+function ModuleOff({ name }) {
+  return <Panel style={{ padding: 18, color: C.muted, fontSize: 13.5 }}>Das Modul „{name}“ ist auf diesem Server ausgeschaltet.</Panel>;
+}
+
+function MoneyForm({ label, hint, busy, onSubmit, children }) {
+  const [v, setV] = useState("");
+  return (
+    <Panel style={{ padding: 18, flex: 1, minWidth: 260 }}>
+      <div style={{ ...serifFont, fontWeight: 700, fontSize: 17, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>{hint}</div>
+      {children}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={v} inputMode="numeric" placeholder="Betrag in ₡" onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, ""))} style={{ ...KI_INPUT_STYLE, flex: 1 }} />
+        <PrimaryBtn disabled={busy || !v || parseInt(v, 10) <= 0} onClick={() => onSubmit(parseInt(v, 10), () => setV(""))}>{label}</PrimaryBtn>
+      </div>
+    </Panel>
+  );
+}
+
+function MyBankSection() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [mods] = useApiData("/api/modules");
+  const [d, err, reloadD] = useApiData("/api/me/dashboard");
+  const [tx, , reloadTx] = useApiData("/api/me/transactions");
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [target, setTarget] = useState(null);
+  useEffect(() => {
+    if (!live || target || q.trim().length < 2) { setResults([]); return; }
+    const t = setTimeout(() => apiGet(`/api/members/search?q=${encodeURIComponent(q.trim())}`).then(setResults).catch(() => setResults([])), 300);
+    return () => clearTimeout(t);
+  }, [q, target, live]);
+  if (!live) return <HomeMessage eyebrow="Wirtschaft" title="Bank-System">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (mods && mods.bank && !mods.bank.enabled) return <><SectionTitle eyebrow="Wirtschaft" title="Bank-System" /><ModuleOff name="Bank-System" /></>;
+  if (err) return <HomeMessage eyebrow="Wirtschaft" title="Bank-System">Dein Konto konnte nicht geladen werden.</HomeMessage>;
+  if (!d) return <HomeMessage eyebrow="Wirtschaft" title="Bank-System">Lade…</HomeMessage>;
+  const reload = () => { reloadD(); reloadTx(); };
+  const run = async (path, params, ok, done) => {
+    setBusy(true);
+    try { await apiPostQuery(path, params); toast(ok, "success"); done && done(); reload(); }
+    catch (e) { toast(e.message || "Das hat nicht geklappt.", "error"); }
+    finally { setBusy(false); }
+  };
+  return (
+    <>
+      <SectionTitle eyebrow="Wirtschaft" title="Bank-System" />
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+        <HomeStat icon={Landmark} label="Bankguthaben" value={fmtMoney(d.balance)} accent="#f59e0b" />
+        <HomeStat icon={Wallet} label="Bargeld" value={fmtMoney(d.cash)} accent={C.cyan} />
+        <HomeStat icon={Coins} label="Gesamt" value={fmtMoney(d.total)} accent={C.gold} />
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+        <MoneyForm label="Einzahlen" hint="Bargeld auf dein Bankkonto legen." busy={busy}
+          onSubmit={(n, done) => run("/api/bank/deposit", { betrag: n }, "Einzahlung erledigt.", done)} />
+        <MoneyForm label="Abheben" hint="Geld vom Bankkonto als Bargeld holen." busy={busy}
+          onSubmit={(n, done) => run("/api/bank/withdraw", { betrag: n }, "Auszahlung erledigt.", done)} />
+        <MoneyForm label="Überweisen" hint="Geld an ein anderes Mitglied senden." busy={busy || !target}
+          onSubmit={(n, done) => run("/api/bank/transfer", { empfaenger_id: target.id, betrag: n }, `${fmtMoney(n)} an ${target.name} überwiesen.`, () => { done(); setTarget(null); setQ(""); })}>
+          {target ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10, padding: "8px 12px", borderRadius: 8, background: C.panelAlt, border: `1px solid ${C.border}`, fontSize: 13.5 }}>
+              <span>An: <b>{target.name}</b></span>
+              <button onClick={() => { setTarget(null); setQ(""); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer" }}>ändern</button>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 10 }}>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Empfänger suchen (mind. 2 Buchstaben)" style={KI_INPUT_STYLE} />
+              {results.map((r) => (
+                <button key={r.id} onClick={() => setTarget(r)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, padding: "8px 4px", cursor: "pointer", fontSize: 13.5 }}>{r.name}</button>
+              ))}
+            </div>
+          )}
+        </MoneyForm>
+      </div>
+      <Panel style={{ padding: 22 }}>
+        <div style={{ ...serifFont, fontWeight: 700, fontSize: 21, marginBottom: 4 }}>Meine Buchungen</div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>Deine letzten Buchungen auf diesem Server.</div>
+        <ActivityList items={(tx || []).map((t, i) => ({ id: i, text: activityText(t, d.username), time: t.time }))} />
+      </Panel>
+    </>
+  );
+}
+
+function MyShopSection() {
+  const { live } = useLive();
+  const { toast, confirm } = useDialog();
+  const [mods] = useApiData("/api/modules");
+  const [items, err, reloadItems] = useApiData("/api/shop/items");
+  const [d, , reloadD] = useApiData("/api/me/dashboard");
+  const [busy, setBusy] = useState(null);
+  if (!live) return <HomeMessage eyebrow="Wirtschaft" title="Shop-System">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (mods && mods.shop && !mods.shop.enabled) return <><SectionTitle eyebrow="Wirtschaft" title="Shop-System" /><ModuleOff name="Shop-System" /></>;
+  if (err) return <HomeMessage eyebrow="Wirtschaft" title="Shop-System">Der Shop konnte nicht geladen werden.</HomeMessage>;
+  if (!items || !d) return <HomeMessage eyebrow="Wirtschaft" title="Shop-System">Lade…</HomeMessage>;
+  const buy = async (it) => {
+    if (!(await confirm(`„${it.name}“ für ${fmtMoney(it.price)} kaufen? Dein Guthaben danach: ${fmtMoney(d.balance - it.price)}.`, { confirmLabel: "Kaufen" }))) return;
+    setBusy(it.id);
+    try {
+      const r = await apiPostQuery(`/api/shop/items/${it.id}/buy`, {});
+      toast(r.role === "fehlgeschlagen" ? `„${it.name}“ gekauft, aber die Rolle konnte nicht vergeben werden. Bitte das Team informieren.` : `„${it.name}“ gekauft.${r.role === "vergeben" ? " Die Rolle wurde vergeben." : ""}`, r.role === "fehlgeschlagen" ? "error" : "success");
+      reloadItems(); reloadD();
+    } catch (e) { toast(e.message || "Kauf fehlgeschlagen.", "error"); }
+    finally { setBusy(null); }
+  };
+  const cats = [...new Set(items.map((i) => i.category || "Sonstiges"))];
+  return (
+    <>
+      <SectionTitle eyebrow="Wirtschaft" title="Shop-System" />
+      <div style={{ fontSize: 13.5, color: C.muted, marginBottom: 14 }}>Dein Bankguthaben: <b style={{ color: C.text }}>{fmtMoney(d.balance)}</b></div>
+      {items.length === 0 && <Panel style={{ padding: 18, color: C.muted, fontSize: 13.5 }}>Im Shop gibt es noch keine Artikel.</Panel>}
+      {cats.map((cat) => (
+        <div key={cat} style={{ marginBottom: 18 }}>
+          <div style={{ ...monoFont, fontSize: 11.5, color: C.gold, marginBottom: 10 }}>{cat.toUpperCase()}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
+            {items.filter((i) => (i.category || "Sonstiges") === cat).map((it) => (
+              <Panel key={it.id} style={{ padding: 16 }}>
+                <div style={{ fontWeight: 600, fontSize: 15.5 }}>{it.name}</div>
+                <div style={{ fontSize: 12, color: C.muted, margin: "4px 0 12px" }}>{it.roleId ? "Enthält eine Discord-Rolle · " : ""}{it.sold}× verkauft</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ ...serifFont, fontWeight: 700, fontSize: 18, color: C.gold }}>{fmtMoney(it.price)}</span>
+                  <PrimaryBtn disabled={busy === it.id || d.balance < it.price} onClick={() => buy(it)}>{d.balance < it.price ? "Zu teuer" : "Kaufen"}</PrimaryBtn>
+                </div>
+              </Panel>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function MyGiveawaysSection() {
+  const { live } = useLive();
+  const { toast } = useDialog();
+  const [mods] = useApiData("/api/modules");
+  const [list, err, reload] = useApiData("/api/me/giveaways");
+  const [busy, setBusy] = useState(null);
+  if (!live) return <HomeMessage eyebrow="Gewinnspiele" title="Giveaways">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (mods && mods.giveaways && !mods.giveaways.enabled) return <><SectionTitle eyebrow="Gewinnspiele" title="Giveaways" /><ModuleOff name="Giveaways" /></>;
+  if (err) return <HomeMessage eyebrow="Gewinnspiele" title="Giveaways">Die Giveaways konnten nicht geladen werden.</HomeMessage>;
+  if (!list) return <HomeMessage eyebrow="Gewinnspiele" title="Giveaways">Lade…</HomeMessage>;
+  const toggle = async (g) => {
+    setBusy(g.id);
+    try {
+      if (g.joined) await apiPostQuery(`/api/giveaways/${g.id}/leave`, {});
+      else await apiPostQuery(`/api/giveaways/${g.id}/join`, {});
+      toast(g.joined ? "Teilnahme beendet." : "Du nimmst teil. Viel Glück!", "success"); reload();
+    }
+    catch (e) { toast(e.message || "Das hat nicht geklappt.", "error"); }
+    finally { setBusy(null); }
+  };
+  const active = list.filter((g) => g.status === "aktiv");
+  const done = list.filter((g) => g.status !== "aktiv").slice(0, 8);
+  return (
+    <>
+      <SectionTitle eyebrow="Gewinnspiele" title="Giveaways" />
+      <div style={{ ...monoFont, fontSize: 11.5, color: C.gold, marginBottom: 10 }}>LAUFENDE GIVEAWAYS</div>
+      {active.length === 0 && <Panel style={{ padding: 18, color: C.muted, fontSize: 13.5, marginBottom: 14 }}>Gerade läuft kein Giveaway.</Panel>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12, marginBottom: 20 }}>
+        {active.map((g) => (
+          <Panel key={g.id} style={{ padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><Gift size={18} color={C.gold} /><span style={{ fontWeight: 600, fontSize: 15.5 }}>{g.prize}</span></div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>Endet {untilText(g.ends)} · {g.entries} Teilnehmer</div>
+            <PrimaryBtn disabled={busy === g.id} onClick={() => toggle(g)}>{g.joined ? "Teilnahme beenden" : "Teilnehmen"}</PrimaryBtn>
+            {g.joined && <span style={{ marginLeft: 10, fontSize: 12.5, color: C.green }}>Du bist dabei ✓</span>}
+          </Panel>
+        ))}
+      </div>
+      {done.length > 0 && (
+        <>
+          <div style={{ ...monoFont, fontSize: 11.5, color: C.muted, marginBottom: 10 }}>BEENDET</div>
+          <Panel style={{ padding: "6px 18px" }}>
+            {done.map((g, i) => (
+              <div key={g.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "11px 0", borderBottom: i === done.length - 1 ? "none" : `1px solid ${C.border}`, fontSize: 13.5 }}>
+                <span>{g.prize}</span><span style={{ color: C.muted }}>{g.winner ? `Gewinner: ${g.winner}` : "kein Gewinner"}</span>
+              </div>
+            ))}
+          </Panel>
+        </>
+      )}
+    </>
+  );
+}
+
+/* ---------------- Mitglieder (Team, nur lesen, ohne Guthaben) ---------------- */
+function MembersReadSection() {
+  const { live } = useLive();
+  const [rows, err] = useApiData("/api/members");
+  const [q, setQ] = useState("");
+  if (!live) return <HomeMessage eyebrow="Team" title="Mitglieder">Nur im Live-Modus verfügbar (Anmeldung mit Discord nötig).</HomeMessage>;
+  if (err) return <HomeMessage eyebrow="Team" title="Mitglieder">Die Mitgliederliste konnte nicht geladen werden.</HomeMessage>;
+  if (!rows) return <HomeMessage eyebrow="Team" title="Mitglieder">Lade…</HomeMessage>;
+  const shown = rows.filter((r) => !q.trim() || (r.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <>
+      <SectionTitle eyebrow="Team" title="Mitglieder" />
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Nur Ansicht. Guthaben und Rollen verwalten Admins im Bereich Benutzer und Team.</div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mitglied suchen…" style={{ ...KI_INPUT_STYLE, maxWidth: 360, marginBottom: 12 }} />
+      <Panel style={{ padding: 0, overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead><tr><Th>Name</Th><Th>Rolle</Th><Th>Status</Th><Th>Dienst</Th><Th>AFK</Th></tr></thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.id}>
+                <Td>{r.name}</Td>
+                <Td>{ROLE_LABEL[r.role] || r.role}</Td>
+                <Td><Badge color={r.status === "online" ? C.green : C.muted}>{r.status || "—"}</Badge></Td>
+                <Td>{r.onDutyFraction || "—"}</Td>
+                <Td>{r.afkReason ? r.afkReason : "—"}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {shown.length === 0 && <div style={{ padding: 16, fontSize: 13.5, color: C.muted }}>Keine Treffer.</div>}
+      </Panel>
+    </>
+  );
+}
+
 const SECTIONS = {
+  mybank: MyBankSection, myshop: MyShopSection, mygiveaways: MyGiveawaysSection, members: MembersReadSection,
   dashboard: DashboardRouter, kennzahlen: DashboardSection, resident: ResidentHome, teamconsole: TeamConsole,
   mytickets: MyTicketsSection, myausweis: MyAusweisSection, bank: BankSection, shop: ShopSection, dienst: DienstSection,
   afk: AfkSection, team: TeamSection, meetings: MeetingsSection, giveaway: GiveawaySection, todo: TodoSection, logs: LogsSection,
@@ -3381,6 +3621,8 @@ function LoginScreen() {
 
 function ServerSelectScreen({ guilds, overview, user }) {
   const roles = [...new Set(guilds.map((g) => g.my_role || "Mitglied"))];
+  const [invite, setInvite] = useState(null);
+  useEffect(() => { apiGet("/api/public-status").then((r) => setInvite(r.invite_url || null)).catch(() => {}); }, []);
   const mono = { fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1.2 };
   return (
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif", position: "relative" }}>
@@ -3442,6 +3684,13 @@ function ServerSelectScreen({ guilds, overview, user }) {
                     </button>
                   </div>
                 ))}
+                {invite && (
+                  <a href={invite} target="_blank" rel="noopener noreferrer" className="srv-card" style={{ border: `2px dashed ${C.gold}88`, borderRadius: 16, padding: 24, textDecoration: "none", color: C.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 12, minHeight: 280 }}>
+                    <span style={{ width: 84, height: 84, borderRadius: 99, border: `2px solid ${C.gold}`, display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={38} color={C.gold} /></span>
+                    <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 22 }}>Weiteren Server verbinden</span>
+                    <span style={{ fontSize: 13.5, color: C.muted }}>Lade den Bot auf einen weiteren Discord-Server ein.</span>
+                  </a>
+                )}
               </div>
             )}
           </div>
